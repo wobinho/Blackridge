@@ -1,0 +1,11 @@
+- data driven approach + hard coded approach - data driven meaning we will use the database as the ground truth for objects while also having a modular hard coded approach for things like effects/skills/ability/or anything that could not be stored in a database.
+- fully modular, each page should be on its own, modular approach to again effects and stuff, so basically we would have a skills file that has the logic code for those maybe even per character but all found in that file, we can even have multiple files if it gets too big, if you get the idea.
+- use frontend-design for developing the game UI and styling (still use Tailwind).
+- the game is basically a rpg + incremental style progression game, where there are 2 main features to the game, auto battle for rewards + materials, and crafting of gears and weapons to sell. the game is called blackridge which is a game revolving around cars, so basically we create our own cars and we have drivers that 'auto battle' which means we send them to do races to deliver result and bring home prestige influence for the user.
+- the initial development should be a landing page + login/sign up page that redirects to the game.
+- we are UI based so no fancy 3d/2d graphics.
+- assets is important in this game, but use placeholder for everything for now, so we would want images on maybe driver portraits (3:4), then cars (4:3), parts (1:1), basically almost everything should have a visual asset.
+- bragging layer, I want the game so that when we deploy the game, it can cater multiple users at a time, and we will have a bragging layer which for now is leaderboards of some sort
+- the visual design direction should be racing / modern/slick style approach + Apple style minimalist.
+- the game is not really a detailed racing simulator, it is just a core feature, we do not need a detailed everything. imagine we are a car brand, and the main objective is to actually sell cars. so the manufacturing/production of cars is more important than the racing sim, it is just a part of it, a way to earn money, a way to test out your best cars and to top the leaderboard with those cars.
+- the way we develop this should be mobile first approach, we want this game to be mobile browser friendly.

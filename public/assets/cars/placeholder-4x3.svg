@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <linearGradient id="carbg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d0d0d"/>
+      <stop offset="100%" style="stop-color:#080808"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1c1c1c"/>
+      <stop offset="60%" style="stop-color:#141414"/>
+      <stop offset="100%" style="stop-color:#0d0d0d"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#carbg)"/>
+
+  <!-- Shadow -->
+  <ellipse cx="200" cy="242" rx="160" ry="12" fill="#000" opacity="0.6"/>
+
+  <!-- Car body -->
+  <path d="M60 200 L60 180 Q65 165 90 152 L130 135 Q155 120 200 118 Q245 120 270 135 L310 152 Q335 165 340 180 L340 200 Z" fill="url(#bodyGrad)" stroke="#2a2a2a" stroke-width="1"/>
+
+  <!-- Windshield -->
+  <path d="M140 138 Q165 118 235 118 Q250 118 260 130 L265 148 Q230 140 200 138 Q170 138 140 145 Z" fill="#1a2a35" opacity="0.8" stroke="#2e4a5e" stroke-width="0.5"/>
+
+  <!-- Side window -->
+  <path d="M140 145 Q155 138 200 138 Q230 138 260 148 L255 162 Q230 155 200 153 Q170 153 148 158 Z" fill="#1a2a35" opacity="0.6"/>
+
+  <!-- Accent stripe -->
+  <rect x="60" y="178" width="280" height="3" fill="#e8001c" opacity="0.8"/>
+
+  <!-- Wheels -->
+  <circle cx="115" cy="210" r="32" fill="#0a0a0a" stroke="#222" stroke-width="2"/>
+  <circle cx="115" cy="210" r="22" fill="#141414" stroke="#1c1c1c" stroke-width="1"/>
+  <circle cx="115" cy="210" r="8" fill="#e8001c" opacity="0.8"/>
+
+  <circle cx="285" cy="210" r="32" fill="#0a0a0a" stroke="#222" stroke-width="2"/>
+  <circle cx="285" cy="210" r="22" fill="#141414" stroke="#1c1c1c" stroke-width="1"/>
+  <circle cx="285" cy="210" r="8" fill="#e8001c" opacity="0.8"/>
+
+  <!-- Wheel spokes -->
+  <line x1="115" y1="188" x2="115" y2="200" stroke="#2a2a2a" stroke-width="2"/>
+  <line x1="115" y1="220" x2="115" y2="232" stroke="#2a2a2a" stroke-width="2"/>
+  <line x1="93" y1="210" x2="105" y2="210" stroke="#2a2a2a" stroke-width="2"/>
+  <line x1="125" y1="210" x2="137" y2="210" stroke="#2a2a2a" stroke-width="2"/>
+
+  <line x1="285" y1="188" x2="285" y2="200" stroke="#2a2a2a" stroke-width="2"/>
+  <line x1="285" y1="220" x2="285" y2="232" stroke="#2a2a2a" stroke-width="2"/>
+  <line x1="263" y1="210" x2="275" y2="210" stroke="#2a2a2a" stroke-width="2"/>
+  <line x1="295" y1="210" x2="307" y2="210" stroke="#2a2a2a" stroke-width="2"/>
+
+  <!-- Front light -->
+  <path d="M338 172 L342 172 L345 178 L342 184 L338 184 Z" fill="#e8c070" opacity="0.9"/>
+  <!-- Rear light -->
+  <path d="M55 172 L58 172 L58 184 L55 184 Z" fill="#e8001c" opacity="0.9"/>
+
+  <!-- Label -->
+  <text x="200" y="270" text-anchor="middle" fill="#333" font-family="monospace" font-size="9" letter-spacing="3">BLACKRIDGE</text>
+</svg>

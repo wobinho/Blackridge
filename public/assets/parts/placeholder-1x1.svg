@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="partbg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#141414"/>
+      <stop offset="100%" style="stop-color:#0d0d0d"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" fill="url(#partbg)"/>
+  <rect x="1" y="1" width="198" height="198" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+  <!-- Gear icon -->
+  <circle cx="100" cy="100" r="28" fill="none" stroke="#2a2a2a" stroke-width="4"/>
+  <circle cx="100" cy="100" r="14" fill="#1c1c1c" stroke="#2a2a2a" stroke-width="2"/>
+  <!-- Gear teeth -->
+  <rect x="96" y="62" width="8" height="14" rx="2" fill="#2a2a2a"/>
+  <rect x="96" y="124" width="8" height="14" rx="2" fill="#2a2a2a"/>
+  <rect x="62" y="96" width="14" height="8" rx="2" fill="#2a2a2a"/>
+  <rect x="124" y="96" width="14" height="8" rx="2" fill="#2a2a2a"/>
+  <!-- Diagonal teeth -->
+  <g transform="rotate(45 100 100)">
+    <rect x="96" y="62" width="8" height="14" rx="2" fill="#2a2a2a"/>
+    <rect x="96" y="124" width="8" height="14" rx="2" fill="#2a2a2a"/>
+    <rect x="62" y="96" width="14" height="8" rx="2" fill="#2a2a2a"/>
+    <rect x="124" y="96" width="14" height="8" rx="2" fill="#2a2a2a"/>
+  </g>
+  <circle cx="100" cy="100" r="8" fill="#e8001c" opacity="0.4"/>
+  <text x="100" y="160" text-anchor="middle" fill="#333" font-family="monospace" font-size="9" letter-spacing="2">COMPONENT</text>
+</svg>

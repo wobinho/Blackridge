@@ -42,7 +42,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   chassis:      "M4 6h16M4 10h16M4 14h16M4 18h16",
   suspension:   "M12 3v3m0 12v3M3 12h3m12 0h3M6.34 6.34l2.12 2.12m7.08 7.08l2.12 2.12M6.34 17.66l2.12-2.12m7.08-7.08l2.12-2.12",
   aerodynamics: "M3 12c0-4.97 4.03-9 9-9s9 4.03 9 9M3 12h18",
-  tyres:        "M12 2a10 10 0 100 20A10 10 0 0012 2zm0 4a6 6 0 100 12A6 6 0 0012 6z",
+  tires:        "M12 2a10 10 0 100 20A10 10 0 0012 2zm0 4a6 6 0 100 12A6 6 0 0012 6z",
   brakes:       "M8 6h8v12H8zM4 8h4v8H4zm12 0h4v8h-4z",
   electronics:  "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18",
 };
@@ -143,7 +143,8 @@ function MaterialSlotCard({
 }) {
   const [qty, setQty] = useState(1);
   const [loading, setLoading] = useState(false);
-  const col = "#888";
+  const rarityKey = (slot as { rarity?: string }).rarity ?? "common";
+  const col = MAT_RARITY_COLOR[rarityKey] ?? "#888";
   const totalCost = slot.price_per_unit * qty;
   const canAfford = credits >= totalCost;
   const isEmpty = slot.quantity === 0;
@@ -159,72 +160,70 @@ function MaterialSlotCard({
     ? `/assets/materials/${slot.art}.png`
     : `/assets/materials/placeholder-1x1.png`;
 
+  const maxQty = Math.min(slot.quantity, 99);
+
   return (
     <div
       className="mkt-mat-card"
-      style={{ "--mat-accent": col, borderColor: col + "22" } as React.CSSProperties}
+      style={{ "--mat-accent": col, borderColor: col + "30" } as React.CSSProperties}
     >
-      {/* Top accent line */}
-      <div className="mkt-mat-accent-line" style={{ background: `linear-gradient(90deg, ${col}88, ${col}22, transparent)` }} />
-
-      {/* Art image */}
-      <div className="mkt-mat-art" style={{ borderColor: col + "22", background: col + "08" }}>
+      {/* Art hero — top square area */}
+      <div className="mkt-mat-art-hero" style={{ background: `radial-gradient(circle at 60% 40%, ${col}18, ${col}05 65%, transparent)` }}>
+        <div className="mkt-mat-art-glow" style={{ background: col + "18", boxShadow: `0 0 40px ${col}30` }} />
         <Image
           src={artSrc}
           alt={slot.name}
-          width={48}
-          height={48}
+          width={80}
+          height={80}
           className="mkt-mat-art-img"
           onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assets/materials/placeholder-1x1.png"; }}
           unoptimized
         />
-      </div>
-
-      <div className="mkt-mat-header">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="mkt-mat-rarity-pip" style={{ background: col, boxShadow: `0 0 6px ${col}88` }} />
-          <span className="mkt-mat-name">{slot.name}</span>
+        {/* Rarity accent corner */}
+        <div className="mkt-mat-rarity-corner" style={{ background: col }} />
+        {/* Stock badge on image */}
+        <div className="mkt-mat-stock-badge" style={{ color: isEmpty ? "#555" : col, borderColor: isEmpty ? "rgba(255,255,255,0.06)" : col + "40", background: isEmpty ? "rgba(0,0,0,0.7)" : col + "14" }}>
+          {isEmpty ? "SOLD OUT" : `×${slot.quantity.toLocaleString()} avail.`}
         </div>
-        <span className="mkt-mat-rarity-badge" style={{ color: col, borderColor: col + "44", background: col + "0f" }}>
-          MAT
-        </span>
       </div>
 
-      <div className="mkt-mat-stock">
-        <span className="mkt-mat-stock-val" style={{ color: isEmpty ? "#555" : col }}>
-          ×{slot.quantity.toLocaleString()}
-        </span>
-        <span className="mkt-mat-stock-label">IN STOCK</span>
-      </div>
+      {/* Bottom content area */}
+      <div className="mkt-mat-content">
+        {/* Name */}
+        <p className="mkt-mat-name">{slot.name}</p>
 
-      <div className="mkt-mat-price-row">
-        <span className="mkt-mat-price">{fmtCr(slot.price_per_unit)}</span>
-        <span className="mkt-mat-price-suffix">CR / UNIT</span>
-      </div>
+        {/* Price row */}
+        <div className="mkt-mat-price-row">
+          <span className="mkt-mat-price" style={{ color: isEmpty ? "#444" : "white" }}>
+            {fmtCr(slot.price_per_unit)}<span className="mkt-mat-price-unit"> CR</span>
+          </span>
+          <span className="mkt-mat-per-unit">/ unit</span>
+        </div>
 
-      {/* Stepper + buy */}
-      <div className="mkt-mat-controls">
-        <div className="mkt-stepper">
-          <button className="mkt-stepper-btn" onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1}>
-            <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8h10" /></svg>
-          </button>
-          <span className="mkt-stepper-val">{qty}</span>
-          <button className="mkt-stepper-btn" onClick={() => setQty((q) => Math.min(slot.quantity, q + 1))} disabled={qty >= slot.quantity || isEmpty}>
-            <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg>
+        {/* Stepper + buy */}
+        <div className="mkt-mat-controls">
+          <div className="mkt-stepper">
+            <button className="mkt-stepper-btn" onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1 || isEmpty}>
+              <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8h10" /></svg>
+            </button>
+            <span className="mkt-stepper-val">{qty}</span>
+            <button className="mkt-stepper-btn" onClick={() => setQty((q) => Math.min(maxQty, q + 1))} disabled={qty >= maxQty || isEmpty}>
+              <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg>
+            </button>
+          </div>
+          <button
+            className="mkt-buy-btn"
+            style={{
+              background: (!canAfford || isEmpty || loading) ? "transparent" : col + "1a",
+              borderColor: (!canAfford || isEmpty || loading) ? "rgba(255,255,255,0.07)" : col + "60",
+              color: (!canAfford || isEmpty || loading) ? "#444" : col,
+            }}
+            onClick={handleBuy}
+            disabled={!canAfford || isEmpty || loading}
+          >
+            {loading ? "…" : isEmpty ? "SOLD" : !canAfford ? "NO CR" : `BUY · ${fmtCr(totalCost)}`}
           </button>
         </div>
-        <button
-          className="mkt-buy-btn"
-          style={{
-            background: (!canAfford || isEmpty || loading) ? "transparent" : col + "18",
-            borderColor: (!canAfford || isEmpty || loading) ? "rgba(255,255,255,0.08)" : col + "55",
-            color: (!canAfford || isEmpty || loading) ? "#555" : col,
-          }}
-          onClick={handleBuy}
-          disabled={!canAfford || isEmpty || loading}
-        >
-          {loading ? "…" : isEmpty ? "SOLD OUT" : !canAfford ? `NEED ${fmtCr(totalCost - credits)} CR` : `BUY · ${fmtCr(totalCost)} CR`}
-        </button>
       </div>
     </div>
   );
@@ -283,85 +282,106 @@ function PartCard({
     setLoading(false);
   };
 
-  const cfg = RARITY_CONFIG["common"];
+  const rarityKey = (listing as { rarity?: string }).rarity ?? "common";
+  const cfg = RARITY_CONFIG[rarityKey] ?? RARITY_CONFIG["common"];
   const partArtSrc = listing.art
     ? `/assets/parts/${listing.art}.png`
     : `/assets/parts/placeholder-1x1.png`;
 
+  const CATEGORY_STATS: Record<string, [{ label: string; v: number }, { label: string; v: number }]> = {
+    engine:      [{ label: "SPEED",      v: listing.stat_speed },       { label: "ACCELERATION", v: listing.stat_acceleration }],
+    suspension:  [{ label: "HANDLING",   v: listing.stat_handling },    { label: "STABILITY",    v: listing.stat_stability }],
+    chassis:     [{ label: "DURABILITY", v: listing.stat_durability },  { label: "WEIGHT",       v: listing.stat_weight }],
+    brakes:      [{ label: "BRAKING",    v: listing.stat_braking },     { label: "CONTROL",      v: listing.stat_control }],
+    gearbox:     [{ label: "SHIFT SPD",  v: listing.stat_shift_speed }, { label: "EFFICIENCY",   v: listing.stat_efficiency }],
+    tires:       [{ label: "GRIP",       v: listing.stat_grip },        { label: "CORNERING",    v: listing.stat_cornering }],
+  };
+  const catStats = CATEGORY_STATS[listing.category] ?? [
+    { label: "SPEED", v: listing.stat_speed },
+    { label: "ACCELERATION", v: listing.stat_acceleration },
+  ];
+
   return (
     <div
       className="mkt-part-card"
-      style={{ animationDelay: `${listing.id * 30}ms`, borderColor: cfg.border }}
+      style={{ animationDelay: `${listing.id * 30}ms`, borderColor: cfg.border, "--part-accent": cfg.accent } as React.CSSProperties}
     >
-      {/* Art image area */}
-      <div className="mkt-part-art" style={{ background: cfg.glow, borderColor: cfg.border }}>
-        <Image
-          src={partArtSrc}
-          alt={listing.name}
-          width={64}
-          height={64}
-          className="mkt-part-art-img"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assets/parts/placeholder-1x1.png"; }}
-          unoptimized
-        />
-        <span
-          className="mkt-part-rarity-badge"
-          style={{ color: cfg.accent, borderColor: cfg.accent + "44", background: cfg.accent + "12" }}
-        >
-          {cfg.label}
-        </span>
-      </div>
+      {/* Full-card background image */}
+      <Image
+        src={partArtSrc}
+        alt={listing.name}
+        fill
+        className="mkt-part-bg-img"
+        onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assets/parts/placeholder-1x1.png"; }}
+        unoptimized
+      />
 
-      <div className="mkt-part-header">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <CatIcon cat={listing.category} size={11} color="var(--color-text-muted)" />
-          <span className="mkt-part-cat">{listing.category.toUpperCase()}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="mkt-part-qty">×{listing.quantity}</span>
-        </div>
-      </div>
+      {/* Scrim — gradient so text is readable */}
+      <div className="mkt-part-scrim" style={{ background: `linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.35) 40%, rgba(8,8,8,0.92) 72%, #080808 100%)` }} />
 
-      <p className="mkt-part-name">{listing.name}</p>
+      {/* Rarity accent glow */}
+      <div className="mkt-part-rarity-glow" style={{ background: `radial-gradient(ellipse at 50% 100%, ${cfg.accent}22, transparent 65%)` }} />
 
-      <div className="mkt-part-stats">
-        {[
-          { k: "SPD", v: listing.stat_speed },
-          { k: "ACC", v: listing.stat_acceleration },
-          { k: "HDL", v: listing.stat_handling },
-          { k: "STB", v: listing.stat_stability },
-          { k: "DUR", v: listing.stat_durability },
-          { k: "BRK", v: listing.stat_braking },
-          { k: "GRP", v: listing.stat_grip },
-          { k: "CRN", v: listing.stat_cornering },
-        ].filter((s) => s.v > 0).map((s) => (
-          <div key={s.k} className="mkt-part-stat">
-            <span className="mkt-part-stat-k">{s.k}</span>
-            <span className="mkt-part-stat-v">{s.v}</span>
+      {/* Accent top line */}
+      <div className="mkt-part-accent-line" style={{ background: `linear-gradient(90deg, ${cfg.accent}cc, ${cfg.accent}33, transparent)` }} />
+
+      {/* Content overlay */}
+      <div className="mkt-part-overlay">
+        {/* Top row: category + rarity */}
+        <div className="mkt-part-hero-top">
+          <div className="mkt-part-cat-row">
+            <CatIcon cat={listing.category} size={9} color={cfg.accent} />
+            <span className="mkt-part-cat" style={{ color: cfg.accent }}>{listing.category.toUpperCase()}</span>
           </div>
-        ))}
-      </div>
-
-      <div className="mkt-part-footer">
-        <div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="mkt-part-price">{fmtCr(listing.price)}</span>
-            <span className="mkt-part-price-cr">CR</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span className="mkt-part-rarity-badge" style={{ color: cfg.accent, borderColor: cfg.accent + "55", background: "rgba(0,0,0,0.6)" }}>
+              {cfg.label}
+            </span>
+            {listing.quantity <= 1 && !isEmpty && (
+              <span className="mkt-part-last-badge">LAST</span>
+            )}
           </div>
-          {deal && (
-            <span className="mkt-part-deal">▼ DEAL</span>
-          )}
         </div>
-        <button
-          className="mkt-part-buy-btn"
-          onClick={handleBuy}
-          disabled={!canAfford || isEmpty || loading}
-          style={{
-            opacity: (!canAfford || isEmpty) ? 0.4 : 1,
-          }}
-        >
-          {loading ? "…" : isEmpty ? "SOLD" : "BUY"}
-        </button>
+
+        {/* Spacer pushes content to bottom */}
+        <div style={{ flex: 1 }} />
+
+        {/* Bottom content */}
+        <div className="mkt-part-body">
+          <p className="mkt-part-name">{listing.name}</p>
+          <span className="mkt-part-qty-label">
+            {isEmpty ? "Out of stock" : `×${listing.quantity} in stock`}
+          </span>
+
+          <div className="mkt-part-stats">
+            {catStats.map((s) => (
+              <div key={s.label} className="mkt-part-stat">
+                <span className="mkt-part-stat-v" style={{ color: cfg.accent }}>{s.v}</span>
+                <span className="mkt-part-stat-k">{s.label}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mkt-part-footer">
+            <div className="mkt-part-price-block">
+              <span className="mkt-part-price">{fmtCr(listing.price)}</span>
+              <span className="mkt-part-price-cr"> CR</span>
+              {deal && <span className="mkt-part-deal">DEAL</span>}
+            </div>
+            <button
+              className="mkt-part-buy-btn"
+              onClick={handleBuy}
+              disabled={!canAfford || isEmpty || loading}
+              style={{
+                background: (!canAfford || isEmpty) ? "rgba(0,0,0,0.5)" : `${cfg.accent}28`,
+                borderColor: (!canAfford || isEmpty) ? "rgba(255,255,255,0.1)" : `${cfg.accent}77`,
+                color: (!canAfford || isEmpty) ? "#555" : cfg.accent,
+              }}
+            >
+              {loading ? "…" : isEmpty ? "SOLD" : !canAfford ? "NO CR" : "BUY"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1399,24 +1419,6 @@ const MARKET_STYLES = `
     color: var(--color-text-subtle);
   }
 
-  /* ── Material art ── */
-  .mkt-mat-art {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid;
-    overflow: hidden;
-    position: relative;
-  }
-  .mkt-mat-art-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    image-rendering: pixelated;
-  }
-
   /* ── Material grid ── */
   .mkt-mat-grid {
     display: grid;
@@ -1424,69 +1426,95 @@ const MARKET_STYLES = `
     gap: 10px;
   }
   @media (min-width: 640px) { .mkt-mat-grid { grid-template-columns: repeat(3, 1fr); } }
-  @media (min-width: 1024px) { .mkt-mat-grid { grid-template-columns: repeat(6, 1fr); } }
+  @media (min-width: 1024px) { .mkt-mat-grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (min-width: 1280px) { .mkt-mat-grid { grid-template-columns: repeat(5, 1fr); } }
 
-  /* ── Material card ── */
+  /* ── Material card — vertical card with art hero ── */
   .mkt-mat-card {
     position: relative;
     background: #111111;
     border: 1px solid;
-    padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    overflow: hidden;
     animation: mktCardIn 0.35s cubic-bezier(0.16,1,0.3,1) both;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .mkt-mat-accent-line {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
+  .mkt-mat-card:hover {
+    border-color: var(--mat-accent, rgba(255,255,255,0.2)) !important;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
   }
-  .mkt-mat-header {
+
+  /* Art hero area — square, prominent */
+  .mkt-mat-art-hero {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    flex-wrap: wrap;
+    justify-content: center;
+    overflow: hidden;
   }
-  .mkt-mat-rarity-pip {
-    width: 7px;
-    height: 7px;
+  .mkt-mat-art-glow {
+    position: absolute;
+    width: 60%;
+    height: 60%;
     border-radius: 50%;
-    flex-shrink: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .mkt-mat-art-img {
+    position: relative;
+    z-index: 1;
+    width: 54%;
+    height: 54%;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
+  }
+  .mkt-mat-rarity-corner {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 18px 18px 0;
+    border-color: transparent var(--mat-accent, #888) transparent transparent;
+    opacity: 0.8;
+  }
+  .mkt-mat-stock-badge {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4px 8px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    border-top: 1px solid;
+    text-align: center;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Content area */
+  .mkt-mat-content {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 10px 10px;
+    gap: 6px;
   }
   .mkt-mat-name {
     font-family: var(--font-mono);
     font-size: 10px;
     color: white;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .mkt-mat-rarity-badge {
-    font-family: var(--font-mono);
-    font-size: 7px;
-    letter-spacing: 0.12em;
-    padding: 2px 5px;
-    border: 1px solid;
-    flex-shrink: 0;
-  }
-  .mkt-mat-stock {
-    display: flex;
-    align-items: baseline;
-    gap: 5px;
-  }
-  .mkt-mat-stock-val {
-    font-family: var(--font-display);
-    font-size: 22px;
     letter-spacing: 0.04em;
-  }
-  .mkt-mat-stock-label {
-    font-family: var(--font-mono);
-    font-size: 8px;
-    color: var(--color-text-subtle);
-    letter-spacing: 0.1em;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
   .mkt-mat-price-row {
     display: flex;
@@ -1494,33 +1522,39 @@ const MARKET_STYLES = `
     gap: 4px;
   }
   .mkt-mat-price {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    color: white;
-    font-weight: 500;
+    font-family: var(--font-display);
+    font-size: 16px;
+    letter-spacing: 0.04em;
+    line-height: 1;
   }
-  .mkt-mat-price-suffix {
+  .mkt-mat-price-unit {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--color-text-muted);
+    letter-spacing: 0.08em;
+  }
+  .mkt-mat-per-unit {
     font-family: var(--font-mono);
     font-size: 8px;
     color: var(--color-text-subtle);
-    letter-spacing: 0.1em;
+    letter-spacing: 0.06em;
   }
+
+  /* Controls row: stepper + buy */
   .mkt-mat-controls {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 6px;
-    margin-top: auto;
   }
   .mkt-stepper {
     display: flex;
     align-items: center;
-    gap: 0;
     border: 1px solid var(--color-border);
-    align-self: flex-start;
+    flex-shrink: 0;
   }
   .mkt-stepper-btn {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1530,189 +1564,258 @@ const MARKET_STYLES = `
     transition: color 0.15s, background 0.15s;
     border: none;
   }
-  .mkt-stepper-btn:hover:not(:disabled) { color: white; background: rgba(255,255,255,0.05); }
-  .mkt-stepper-btn:disabled { opacity: 0.3; cursor: default; }
+  .mkt-stepper-btn:hover:not(:disabled) { color: white; background: rgba(255,255,255,0.06); }
+  .mkt-stepper-btn:disabled { opacity: 0.25; cursor: default; }
   .mkt-stepper-val {
-    width: 32px;
+    width: 28px;
     text-align: center;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 11px;
     color: white;
     border-left: 1px solid var(--color-border);
     border-right: 1px solid var(--color-border);
     padding: 4px 0;
+    line-height: 1;
   }
   .mkt-buy-btn {
-    padding: 7px 10px;
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
     font-family: var(--font-mono);
     font-size: 9px;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     border: 1px solid;
     cursor: pointer;
     transition: all 0.15s;
     text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .mkt-buy-btn:not(:disabled):hover { filter: brightness(1.2); }
+  .mkt-buy-btn:not(:disabled):hover { filter: brightness(1.25); }
   .mkt-buy-btn:disabled { cursor: default; }
 
   /* ── Parts grid ── */
   .mkt-parts-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
   @media (min-width: 640px) { .mkt-parts-grid { grid-template-columns: repeat(3, 1fr); } }
   @media (min-width: 1024px) { .mkt-parts-grid { grid-template-columns: repeat(4, 1fr); } }
 
-  /* ── Part art ── */
-  .mkt-part-art {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-bottom: 1px solid;
-    overflow: hidden;
-    position: relative;
-  }
-  .mkt-part-art-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    image-rendering: pixelated;
-  }
-  .mkt-part-rarity-badge {
-    position: absolute;
-    bottom: 6px;
-    right: 6px;
-    font-family: var(--font-mono);
-    font-size: 7px;
-    letter-spacing: 0.12em;
-    padding: 2px 5px;
-    border: 1px solid;
-  }
-
-  /* ── Part card ── */
+  /* ── Part card — full-bleed image, content overlaid ── */
   .mkt-part-card {
-    background: #111111;
-    border: 1px solid var(--color-border);
-    padding: 0;
+    position: relative;
+    background: #0d0d0d;
+    border: 1px solid;
+    aspect-ratio: 3 / 4;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     animation: mktCardIn 0.35s cubic-bezier(0.16,1,0.3,1) both;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .mkt-part-card > .mkt-part-header { padding: 10px 12px 0; }
-  .mkt-part-card > .mkt-part-name  { padding: 4px 12px 0; }
-  .mkt-part-card > .mkt-part-stats { padding: 6px 12px 0; }
-  .mkt-part-card > .mkt-part-footer { padding: 8px 12px 12px; }
-  .mkt-part-card:hover { border-color: rgba(255,255,255,0.15); }
-  .mkt-part-header {
+  .mkt-part-card:hover {
+    border-color: var(--part-accent, rgba(255,255,255,0.25)) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .mkt-part-card:hover .mkt-part-bg-img {
+    transform: scale(1.04);
+  }
+
+  /* Full-card background image */
+  .mkt-part-bg-img {
+    object-fit: cover;
+    object-position: center;
+    transition: transform 0.4s ease;
+    z-index: 0;
+  }
+
+  /* Gradient scrim — darkens bottom for text legibility */
+  .mkt-part-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* Rarity glow at bottom */
+  .mkt-part-rarity-glow {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  /* Top accent line */
+  .mkt-part-accent-line {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    z-index: 4;
+  }
+
+  /* Full overlay flex container */
+  .mkt-part-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+  }
+
+  /* Top row: category + rarity */
+  .mkt-part-hero-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
+    gap: 4px;
+  }
+  .mkt-part-cat-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
   }
   .mkt-part-cat {
     font-family: var(--font-mono);
     font-size: 8px;
-    color: var(--color-text-muted);
     letter-spacing: 0.1em;
+    font-weight: 600;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  }
+  .mkt-part-rarity-badge {
+    font-family: var(--font-mono);
+    font-size: 7px;
+    letter-spacing: 0.1em;
+    padding: 2px 5px;
+    border: 1px solid;
+    flex-shrink: 0;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    backdrop-filter: blur(4px);
   }
-  .mkt-part-tier {
+  .mkt-part-last-badge {
     font-family: var(--font-mono);
-    font-size: 9px;
-    color: #e8001c;
+    font-size: 7px;
     letter-spacing: 0.1em;
-    padding: 1px 5px;
-    border: 1px solid rgba(232,0,28,0.25);
-    background: rgba(232,0,28,0.06);
+    padding: 2px 5px;
+    border: 1px solid rgba(249,115,22,0.5);
+    background: rgba(0,0,0,0.6);
+    color: #f97316;
     flex-shrink: 0;
+    backdrop-filter: blur(4px);
   }
-  .mkt-part-qty {
-    font-family: var(--font-mono);
-    font-size: 9px;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
+
+  /* Bottom content: name, stock, stats, footer */
+  .mkt-part-body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
   }
   .mkt-part-name {
     font-family: var(--font-mono);
     font-size: 11px;
     color: white;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.9);
   }
+  .mkt-part-qty-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.06em;
+  }
+
+  /* Stats grid — always 2 cols, one per influenced stat */
   .mkt-part-stats {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
   }
   .mkt-part-stat {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1px;
-    padding: 3px 5px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--color-border);
-    min-width: 30px;
+    gap: 2px;
+    padding: 6px 4px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(6px);
+  }
+  .mkt-part-stat-v {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 0.04em;
+    line-height: 1;
   }
   .mkt-part-stat-k {
     font-family: var(--font-mono);
-    font-size: 7px;
-    color: var(--color-text-subtle);
-    letter-spacing: 0.1em;
+    font-size: 8px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
-  .mkt-part-stat-v {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: white;
-    font-weight: 500;
-  }
+
+  /* Footer: price + buy */
   .mkt-part-footer {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    margin-top: auto;
+    gap: 6px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 6px;
+    margin-top: 2px;
+  }
+  .mkt-part-price-block {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    flex-wrap: wrap;
   }
   .mkt-part-price {
     font-family: var(--font-display);
-    font-size: 18px;
+    font-size: 17px;
     letter-spacing: 0.04em;
     color: white;
+    line-height: 1;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.9);
   }
   .mkt-part-price-cr {
     font-family: var(--font-mono);
     font-size: 9px;
-    color: var(--color-text-muted);
+    color: rgba(255,255,255,0.4);
     letter-spacing: 0.1em;
   }
   .mkt-part-deal {
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 7px;
     color: #4ade80;
     letter-spacing: 0.1em;
+    padding: 1px 4px;
+    border: 1px solid rgba(74,222,128,0.3);
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
   }
   .mkt-part-buy-btn {
     padding: 6px 12px;
     font-family: var(--font-mono);
     font-size: 9px;
     letter-spacing: 0.12em;
-    background: rgba(232,0,28,0.1);
-    border: 1px solid rgba(232,0,28,0.3);
-    color: #e8001c;
+    border: 1px solid;
     cursor: pointer;
     transition: all 0.15s;
     flex-shrink: 0;
+    white-space: nowrap;
+    backdrop-filter: blur(6px);
   }
-  .mkt-part-buy-btn:not(:disabled):hover {
-    background: rgba(232,0,28,0.2);
-  }
+  .mkt-part-buy-btn:not(:disabled):hover { filter: brightness(1.25); }
   .mkt-part-buy-btn:disabled { cursor: default; }
 
   /* ── Cars grid ── */

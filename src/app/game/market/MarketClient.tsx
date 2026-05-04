@@ -143,7 +143,7 @@ function MaterialSlotCard({
 }) {
   const [qty, setQty] = useState(1);
   const [loading, setLoading] = useState(false);
-  const col = MAT_RARITY_COLOR[slot.rarity] ?? "#aaa";
+  const col = "#888";
   const totalCost = slot.price_per_unit * qty;
   const canAfford = credits >= totalCost;
   const isEmpty = slot.quantity === 0;
@@ -186,7 +186,7 @@ function MaterialSlotCard({
           <span className="mkt-mat-name">{slot.name}</span>
         </div>
         <span className="mkt-mat-rarity-badge" style={{ color: col, borderColor: col + "44", background: col + "0f" }}>
-          {slot.rarity.toUpperCase()}
+          MAT
         </span>
       </div>
 
@@ -283,7 +283,7 @@ function PartCard({
     setLoading(false);
   };
 
-  const cfg = RARITY_CONFIG[listing.rarity] ?? RARITY_CONFIG.common;
+  const cfg = RARITY_CONFIG["common"];
   const partArtSrc = listing.art
     ? `/assets/parts/${listing.art}.png`
     : `/assets/parts/placeholder-1x1.png`;
@@ -318,7 +318,6 @@ function PartCard({
           <span className="mkt-part-cat">{listing.category.toUpperCase()}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="mkt-part-tier">T{listing.tier}</span>
           <span className="mkt-part-qty">×{listing.quantity}</span>
         </div>
       </div>
@@ -328,9 +327,13 @@ function PartCard({
       <div className="mkt-part-stats">
         {[
           { k: "SPD", v: listing.stat_speed },
-          { k: "HND", v: listing.stat_handling },
-          { k: "DUR", v: listing.stat_durability },
           { k: "ACC", v: listing.stat_acceleration },
+          { k: "HDL", v: listing.stat_handling },
+          { k: "STB", v: listing.stat_stability },
+          { k: "DUR", v: listing.stat_durability },
+          { k: "BRK", v: listing.stat_braking },
+          { k: "GRP", v: listing.stat_grip },
+          { k: "CRN", v: listing.stat_cornering },
         ].filter((s) => s.v > 0).map((s) => (
           <div key={s.k} className="mkt-part-stat">
             <span className="mkt-part-stat-k">{s.k}</span>
@@ -427,7 +430,7 @@ function CarListingCard({
           <div className="mkt-car-color-dot" style={{ background: listing.color, boxShadow: `0 0 8px ${listing.color}66` }} />
           <span className="mkt-car-model-code">{listing.model_code}</span>
         </div>
-        <span className="mkt-car-tier-badge">T{listing.tier}</span>
+        <span className="mkt-car-tier-badge">{listing.archetype.replace("_", " ").toUpperCase()}</span>
       </div>
 
       <div className="mkt-car-body">
@@ -437,10 +440,10 @@ function CarListingCard({
         {/* Stats row */}
         <div className="mkt-car-stats">
           {[
-            { k: "SPD", v: listing.speed },
-            { k: "HND", v: listing.handling },
-            { k: "DUR", v: listing.durability },
-            { k: "ACC", v: listing.acceleration },
+            { k: "SPD", v: listing.stat_speed },
+            { k: "HDL", v: listing.stat_handling },
+            { k: "DUR", v: listing.stat_durability },
+            { k: "ACC", v: listing.stat_acceleration },
           ].map((s) => (
             <div key={s.k} className="mkt-car-stat">
               <span className="mkt-car-stat-k">{s.k}</span>
@@ -528,7 +531,7 @@ function CarConfirmModal({
 
         <div className="mkt-confirm-body">
           <div className="mkt-car-stats" style={{ marginBottom: 12 }}>
-            {[{ k: "SPD", v: listing.speed }, { k: "HND", v: listing.handling }, { k: "DUR", v: listing.durability }, { k: "ACC", v: listing.acceleration }].map((s) => (
+            {[{ k: "SPD", v: listing.stat_speed }, { k: "HDL", v: listing.stat_handling }, { k: "DUR", v: listing.stat_durability }, { k: "ACC", v: listing.stat_acceleration }].map((s) => (
               <div key={s.k} className="mkt-car-stat" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
                 <span className="mkt-car-stat-k">{s.k}</span>
                 <span className="mkt-car-stat-v">{s.v}</span>

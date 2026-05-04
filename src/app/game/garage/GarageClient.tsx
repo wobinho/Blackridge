@@ -93,7 +93,7 @@ function CarCard({
           <h3 className="grg-car-name">{car.name}</h3>
           <div className="grg-car-meta">
             <span className="grg-car-model">{car.model_code}</span>
-            <span className="grg-tier-badge">TIR {TIER_LABELS[car.tier] ?? car.tier}</span>
+            <span className="grg-tier-badge">{car.archetype.replace("_", " ").toUpperCase()}</span>
           </div>
         </div>
         <div className="grg-car-swatch-wrap">
@@ -112,10 +112,10 @@ function CarCard({
 
       {/* Stats */}
       <div className="grg-stats-block">
-        <StatBar label="SPD" value={car.speed} color={car.color} />
-        <StatBar label="HDL" value={car.handling} color={car.color} />
-        <StatBar label="DRB" value={car.durability} color={car.color} />
-        <StatBar label="ACC" value={car.acceleration} color={car.color} />
+        <StatBar label="SPD" value={car.stat_speed} color={car.color} />
+        <StatBar label="HDL" value={car.stat_handling} color={car.color} />
+        <StatBar label="DRB" value={car.stat_durability} color={car.color} />
+        <StatBar label="ACC" value={car.stat_acceleration} color={car.color} />
       </div>
 
       {/* Race record */}
@@ -222,7 +222,7 @@ function ListModal({
           <div className="grg-modal-car-accent" style={{ background: car.color }} />
           <div className="grg-modal-car-info">
             <span className="grg-modal-car-name">{car.name}</span>
-            <span className="grg-modal-car-sub">{car.model_code} · TIER {TIER_LABELS[car.tier] ?? car.tier}</span>
+            <span className="grg-modal-car-sub">{car.model_code} · {car.archetype.replace("_", " ").toUpperCase()}</span>
           </div>
           <div className="grg-modal-color-swatch" style={{ background: car.color }} />
         </div>
@@ -230,10 +230,10 @@ function ListModal({
         {/* Stats preview */}
         <div className="grg-modal-stats">
           {[
-            { label: "SPD", value: car.speed },
-            { label: "HDL", value: car.handling },
-            { label: "DRB", value: car.durability },
-            { label: "ACC", value: car.acceleration },
+            { label: "SPD", value: car.stat_speed },
+            { label: "HDL", value: car.stat_handling },
+            { label: "DRB", value: car.stat_durability },
+            { label: "ACC", value: car.stat_acceleration },
           ].map((s) => (
             <div key={s.label} className="grg-modal-stat">
               <span className="grg-modal-stat-val" style={{ color: car.color }}>{s.value}</span>

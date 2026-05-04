@@ -6,7 +6,7 @@ import { seedDatabase } from "@/lib/seed";
 import { redirect } from "next/navigation";
 import MarketClient from "./MarketClient";
 
-export type Rarity = "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythical" | "event";
+export type Rarity = "common" | "rare" | "epic" | "legendary" | "mythical";
 
 export interface MarketMaterialSlot {
   slot_index: number;
@@ -16,7 +16,6 @@ export interface MarketMaterialSlot {
   refresh_at: number;
   name: string;
   art: string | null;
-  rarity: Rarity;
   base_value: number;
   description: string | null;
 }
@@ -29,12 +28,18 @@ export interface MarketPartListing {
   expires_at: number;
   name: string;
   category: string;
-  tier: number;
-  rarity: Rarity;
   stat_speed: number;
-  stat_handling: number;
-  stat_durability: number;
   stat_acceleration: number;
+  stat_handling: number;
+  stat_stability: number;
+  stat_durability: number;
+  stat_weight: number;
+  stat_braking: number;
+  stat_control: number;
+  stat_shift_speed: number;
+  stat_efficiency: number;
+  stat_grip: number;
+  stat_cornering: number;
   sell_price: number;
   art: string | null;
 }
@@ -47,14 +52,23 @@ export interface MarketCarListing {
   seller_name: string;
   seller_brand: string;
   car_name: string;
-  speed: number;
-  handling: number;
-  durability: number;
-  acceleration: number;
+  stat_speed: number;
+  stat_acceleration: number;
+  stat_handling: number;
+  stat_stability: number;
+  stat_durability: number;
+  stat_weight: number;
+  stat_braking: number;
+  stat_control: number;
+  stat_shift_speed: number;
+  stat_efficiency: number;
+  stat_grip: number;
+  stat_cornering: number;
+  wear: number;
   total_races: number;
   total_wins: number;
   template_name: string;
-  tier: number;
+  archetype: string;
   art: string | null;
   model_code: string;
   color: string;
@@ -96,33 +110,34 @@ export interface MarketPageData {
   pity: { driver: number; engineer: number };
 }
 
+// Material IDs match seed order: 1=Steel,2=Aluminum,3=Carbon,4=Titanium,5=Polymer,6=Hardware,7=Electronics,8=Compounds,9=Fluids,10=Trims
 // 12-slot pool configs (slots 0-3 base, 4-11 unlockable via upgrades)
 // Format: [material_id, weight, qty_min, qty_max, price_multiplier]
 const SLOT_POOLS: Array<Array<[number, number, number, number, number]>> = [
-  // Slot 0 — common bulk
-  [[2, 60, 15, 25, 0.9], [4, 40, 12, 20, 0.9]],
-  // Slot 1 — common variety
-  [[4, 50, 12, 18, 1.0], [5, 50, 10, 18, 1.0]],
-  // Slot 2 — common/uncommon
-  [[5, 45, 10, 16, 1.0], [1, 35, 6, 10, 1.1], [2, 20, 14, 22, 0.9]],
-  // Slot 3 — uncommon
-  [[1, 50, 5, 10, 1.2], [6, 50, 3, 7, 1.2]],
-  // Slot 4 — uncommon/rare (bonus tier 1)
-  [[6, 40, 3, 6, 1.3], [3, 30, 2, 4, 1.5], [7, 30, 1, 3, 1.8]],
-  // Slot 5 — rare/epic (bonus tier 1)
-  [[3, 45, 2, 4, 1.6], [7, 35, 1, 3, 2.0], [8, 20, 1, 2, 2.5]],
-  // Slot 6 — uncommon bulk (bonus tier 2)
-  [[1, 55, 6, 12, 1.1], [6, 45, 4, 8, 1.2]],
-  // Slot 7 — rare (bonus tier 2)
-  [[3, 55, 2, 5, 1.5], [7, 45, 1, 3, 1.9]],
-  // Slot 8 — common/uncommon mix (bonus tier 3)
-  [[2, 40, 10, 18, 0.95], [5, 35, 8, 14, 1.0], [1, 25, 4, 8, 1.15]],
-  // Slot 9 — rare/epic (bonus tier 3)
-  [[7, 45, 2, 4, 1.8], [8, 35, 1, 3, 2.2], [3, 20, 2, 4, 1.6]],
-  // Slot 10 — uncommon/rare (bonus tier 4)
-  [[6, 50, 4, 8, 1.25], [3, 30, 2, 4, 1.6], [7, 20, 1, 2, 2.0]],
-  // Slot 11 — epic tier (bonus tier 4)
-  [[8, 50, 1, 3, 2.4], [7, 30, 2, 4, 2.0], [3, 20, 2, 3, 1.7]],
+  // Slot 0 — cheap bulk (Steel, Hardware)
+  [[1, 60, 15, 25, 0.9], [6, 40, 12, 20, 0.9]],
+  // Slot 1 — common variety (Aluminum, Polymer)
+  [[2, 50, 12, 18, 1.0], [5, 50, 10, 18, 1.0]],
+  // Slot 2 — common mix (Steel, Fluids, Trims)
+  [[1, 40, 10, 18, 0.9], [9, 35, 8, 14, 1.0], [10, 25, 6, 10, 1.1]],
+  // Slot 3 — mid-tier (Compounds, Electronics)
+  [[8, 50, 5, 10, 1.2], [7, 50, 3, 7, 1.3]],
+  // Slot 4 — mid/rare (Carbon, Titanium)
+  [[3, 55, 3, 6, 1.4], [4, 45, 1, 3, 1.8]],
+  // Slot 5 — rare (Titanium, Electronics)
+  [[4, 50, 2, 4, 1.7], [7, 30, 1, 3, 1.9], [3, 20, 2, 4, 1.5]],
+  // Slot 6 — common bulk bonus (Aluminum, Compounds)
+  [[2, 55, 8, 14, 1.0], [8, 45, 5, 10, 1.1]],
+  // Slot 7 — mid bonus (Carbon, Hardware)
+  [[3, 55, 3, 6, 1.3], [6, 45, 8, 14, 0.9]],
+  // Slot 8 — mixed bonus (Steel, Polymer, Fluids)
+  [[1, 40, 10, 18, 0.9], [5, 35, 8, 14, 1.0], [9, 25, 5, 10, 1.0]],
+  // Slot 9 — rare bonus (Titanium, Electronics, Carbon)
+  [[4, 45, 2, 4, 1.7], [7, 35, 1, 3, 1.9], [3, 20, 2, 4, 1.5]],
+  // Slot 10 — mid bonus (Compounds, Carbon)
+  [[8, 50, 4, 8, 1.2], [3, 30, 2, 5, 1.4], [7, 20, 1, 3, 1.8]],
+  // Slot 11 — premium bonus (Titanium, Electronics, Carbon)
+  [[4, 50, 2, 4, 1.8], [7, 30, 2, 4, 1.9], [3, 20, 3, 6, 1.5]],
 ];
 const MAT_REFRESH = 180;
 const PART_REFRESH = 3600;
@@ -199,7 +214,7 @@ export default async function MarketPage() {
   // --- Fetch all market data ---
   const materialSlots = db.prepare(`
     SELECT mms.slot_index, mms.material_id, mms.quantity, mms.price_per_unit, mms.refresh_at,
-           m.name, m.art, m.rarity, m.base_value, m.description
+           m.name, m.art, m.base_value, m.description
     FROM market_material_slots mms
     JOIN materials m ON m.id = mms.material_id
     WHERE mms.slot_index < ?
@@ -208,23 +223,29 @@ export default async function MarketPage() {
 
   const partListings = db.prepare(`
     SELECT mpl.id, mpl.part_id, mpl.price, mpl.quantity, mpl.expires_at,
-           pt.name, pt.category, pt.tier, pt.rarity, pt.stat_speed, pt.stat_handling,
-           pt.stat_durability, pt.stat_acceleration, pt.sell_price, pt.art
+           pt.name, pt.category,
+           pt.stat_speed, pt.stat_acceleration, pt.stat_handling, pt.stat_stability,
+           pt.stat_durability, pt.stat_weight, pt.stat_braking, pt.stat_control,
+           pt.stat_shift_speed, pt.stat_efficiency, pt.stat_grip, pt.stat_cornering,
+           pt.sell_price, pt.art
     FROM market_part_listings mpl
     JOIN part_templates pt ON pt.id = mpl.part_id
-    ORDER BY pt.category, pt.tier
+    ORDER BY pt.category
   `).all() as MarketPartListing[];
 
   const carListings = db.prepare(`
     SELECT ml.id as listing_id, ml.item_id as car_id, ml.price, ml.listed_at,
            u.username as seller_name, u.brand_name as seller_brand,
-           c.name as car_name, c.speed, c.handling, c.durability, c.acceleration,
-           c.total_races, c.total_wins, c.color,
-           ct.name as template_name, ct.tier, ct.art, ct.model_code
+           c.name as car_name,
+           c.stat_speed, c.stat_acceleration, c.stat_handling, c.stat_stability,
+           c.stat_durability, c.stat_weight, c.stat_braking, c.stat_control,
+           c.stat_shift_speed, c.stat_efficiency, c.stat_grip, c.stat_cornering,
+           c.wear, c.total_races, c.total_wins, c.color,
+           ct.name as template_name, ct.archetype, ct.art, ct.model_code
     FROM market_listings ml
     JOIN users u ON u.id = ml.seller_id
     JOIN cars c ON c.id = ml.item_id
-    JOIN car_templates ct ON ct.id = c.template_id
+    JOIN car_templates ct ON ct.id = c.car_template_id
     WHERE ml.listing_type = 'car' AND ml.status = 'active' AND ml.seller_id != ?
     ORDER BY ml.listed_at DESC LIMIT 50
   `).all(session.id) as MarketCarListing[];

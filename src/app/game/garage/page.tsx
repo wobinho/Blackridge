@@ -10,18 +10,27 @@ export interface GarageCar {
   id: number;
   name: string;
   color: string;
-  speed: number;
-  handling: number;
-  durability: number;
-  acceleration: number;
-  status: "garage" | "racing" | "for_sale" | "sold";
+  stat_speed: number;
+  stat_acceleration: number;
+  stat_handling: number;
+  stat_stability: number;
+  stat_durability: number;
+  stat_weight: number;
+  stat_braking: number;
+  stat_control: number;
+  stat_shift_speed: number;
+  stat_efficiency: number;
+  stat_grip: number;
+  stat_cornering: number;
+  wear: number;
+  status: "garage" | "racing" | "crafting" | "for_sale" | "sold";
   total_races: number;
   total_wins: number;
   sale_price: number | null;
   listing_id: number | null;
   template_name: string;
   model_code: string;
-  tier: number;
+  archetype: string;
   created_at: number;
 }
 
@@ -38,12 +47,15 @@ export default async function GaragePage() {
   await seedDatabase(db);
 
   const cars = db.prepare(`
-    SELECT c.id, c.name, c.color, c.speed, c.handling, c.durability, c.acceleration,
-           c.status, c.total_races, c.total_wins, c.sale_price,
+    SELECT c.id, c.name, c.color,
+           c.stat_speed, c.stat_acceleration, c.stat_handling, c.stat_stability,
+           c.stat_durability, c.stat_weight, c.stat_braking, c.stat_control,
+           c.stat_shift_speed, c.stat_efficiency, c.stat_grip, c.stat_cornering,
+           c.wear, c.status, c.total_races, c.total_wins, c.sale_price,
            ml.id as listing_id,
-           ct.name as template_name, ct.model_code, ct.tier, c.created_at
+           ct.name as template_name, ct.model_code, ct.archetype, c.created_at
     FROM cars c
-    JOIN car_templates ct ON ct.id = c.template_id
+    JOIN car_templates ct ON ct.id = c.car_template_id
     LEFT JOIN market_listings ml ON ml.item_id = c.id AND ml.listing_type = 'car' AND ml.status = 'active'
     WHERE c.user_id = ? AND c.status != 'sold'
     ORDER BY c.created_at DESC

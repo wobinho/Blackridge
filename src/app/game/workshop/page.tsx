@@ -6,13 +6,10 @@ import { seedDatabase } from "@/lib/seed";
 import { redirect } from "next/navigation";
 import WorkshopClient from "./WorkshopClient";
 
-export type Rarity = "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythical" | "event";
-
 export interface MaterialStock {
   id: number;
   name: string;
   art: string | null;
-  rarity: Rarity;
   base_value: number;
   quantity: number;
 }
@@ -21,23 +18,29 @@ export interface PartTemplate {
   id: number;
   name: string;
   category: string;
-  tier: number;
-  rarity: Rarity;
   art: string | null;
   stat_speed: number;
-  stat_handling: number;
-  stat_durability: number;
   stat_acceleration: number;
+  stat_handling: number;
+  stat_stability: number;
+  stat_durability: number;
+  stat_weight: number;
+  stat_braking: number;
+  stat_control: number;
+  stat_shift_speed: number;
+  stat_efficiency: number;
+  stat_grip: number;
+  stat_cornering: number;
   craft_time: number;
   sell_price: number;
-  base_materials: string; // JSON
+  recipe: string; // JSON
 }
 
 export interface CraftSlot {
   queue_id: number | null;
   slot_index: number;
   status: "idle" | "crafting" | "completed";
-  part_id: number | null;
+  part_template_id: number | null;
   part_name: string | null;
   part_category: string | null;
   engineer_id: number | null;
@@ -46,21 +49,30 @@ export interface CraftSlot {
   completes_at: number | null;
 }
 
+export type Rarity = "common" | "rare" | "epic" | "legendary" | "mythical";
+
 export interface InventoryPart {
   id: number;
-  part_id: number;
+  part_template_id: number;
   name: string;
   category: string;
-  tier: number;
-  rarity: Rarity;
   art: string | null;
+  rarity: Rarity;
   stat_speed: number;
-  stat_handling: number;
-  stat_durability: number;
   stat_acceleration: number;
-  sell_price: number;
-  quantity: number;
-  quality: number;
+  stat_handling: number;
+  stat_stability: number;
+  stat_durability: number;
+  stat_weight: number;
+  stat_braking: number;
+  stat_control: number;
+  stat_shift_speed: number;
+  stat_efficiency: number;
+  stat_grip: number;
+  stat_cornering: number;
+  sale_price: number | null;
+  status: string;
+  crafted_at: number;
 }
 
 export interface EngineerFull {
@@ -110,7 +122,7 @@ export default async function WorkshopPage() {
   await seedDatabase(db);
 
   const materials = db.prepare(
-    `SELECT m.id, m.name, m.art, m.rarity, m.base_value,
+    `SELECT m.id, m.name, m.art, m.base_value,
             COALESCE(im.quantity, 0) as quantity
      FROM materials m
      LEFT JOIN inventory_materials im ON im.material_id = m.id AND im.user_id = ?
@@ -118,9 +130,12 @@ export default async function WorkshopPage() {
   ).all(session.id) as MaterialStock[];
 
   const partTemplates = db.prepare(
-    `SELECT id, name, category, tier, rarity, art, stat_speed, stat_handling, stat_durability,
-            stat_acceleration, craft_time, sell_price, base_materials
-     FROM part_templates ORDER BY category, tier, rarity`
+    `SELECT id, name, category, art,
+            stat_speed, stat_acceleration, stat_handling, stat_stability,
+            stat_durability, stat_weight, stat_braking, stat_control,
+            stat_shift_speed, stat_efficiency, stat_grip, stat_cornering,
+            craft_time, sell_price, recipe
+     FROM part_templates ORDER BY category`
   ).all() as PartTemplate[];
 
   const upgradesRow = db.prepare(
@@ -135,12 +150,12 @@ export default async function WorkshopPage() {
   };
 
   const activeJobs = db.prepare(
-    `SELECT cq.id as queue_id, cq.slot_index, cq.status, cq.part_id,
+    `SELECT cq.id as queue_id, cq.slot_index, cq.status, cq.part_template_id,
             pt.name as part_name, pt.category as part_category,
             cq.engineer_id, e_tmpl.name as engineer_name,
             cq.started_at, cq.completes_at
      FROM crafting_queue cq
-     JOIN part_templates pt ON pt.id = cq.part_id
+     JOIN part_templates pt ON pt.id = cq.part_template_id
      LEFT JOIN engineers eng ON eng.id = cq.engineer_id
      LEFT JOIN engineer_templates e_tmpl ON e_tmpl.id = eng.template_id
      WHERE cq.user_id = ? AND cq.status IN ('crafting', 'completed')
@@ -149,7 +164,7 @@ export default async function WorkshopPage() {
     queue_id: number;
     slot_index: number;
     status: string;
-    part_id: number;
+    part_template_id: number;
     part_name: string;
     part_category: string;
     engineer_id: number | null;
@@ -171,13 +186,13 @@ export default async function WorkshopPage() {
   const craftSlots: CraftSlot[] = Array.from({ length: upgrades.develop_slots }, (_, i) => {
     const job = jobsBySlot.get(i);
     if (!job) {
-      return { queue_id: null, slot_index: i, status: "idle", part_id: null, part_name: null, part_category: null, engineer_id: null, engineer_name: null, started_at: null, completes_at: null };
+      return { queue_id: null, slot_index: i, status: "idle", part_template_id: null, part_name: null, part_category: null, engineer_id: null, engineer_name: null, started_at: null, completes_at: null };
     }
     return {
       queue_id: job.queue_id,
       slot_index: i,
       status: job.status as "crafting" | "completed",
-      part_id: job.part_id,
+      part_template_id: job.part_template_id,
       part_name: job.part_name,
       part_category: job.part_category,
       engineer_id: job.engineer_id,
@@ -188,13 +203,16 @@ export default async function WorkshopPage() {
   });
 
   const inventory = db.prepare(
-    `SELECT ip.id, ip.part_id, pt.name, pt.category, pt.tier, pt.rarity, pt.art,
-            pt.stat_speed, pt.stat_handling, pt.stat_durability, pt.stat_acceleration,
-            pt.sell_price, ip.quantity, ip.quality
+    `SELECT ip.id, ip.part_template_id, pt.name, pt.category, pt.art,
+            ip.rarity,
+            ip.stat_speed, ip.stat_acceleration, ip.stat_handling, ip.stat_stability,
+            ip.stat_durability, ip.stat_weight, ip.stat_braking, ip.stat_control,
+            ip.stat_shift_speed, ip.stat_efficiency, ip.stat_grip, ip.stat_cornering,
+            ip.sale_price, ip.status, ip.crafted_at
      FROM inventory_parts ip
-     JOIN part_templates pt ON pt.id = ip.part_id
-     WHERE ip.user_id = ? AND ip.for_sale = 0
-     ORDER BY pt.category, pt.tier, pt.rarity`
+     JOIN part_templates pt ON pt.id = ip.part_template_id
+     WHERE ip.user_id = ? AND ip.status = 'inventory'
+     ORDER BY ip.rarity DESC, pt.category`
   ).all(session.id) as InventoryPart[];
 
   const engineers = db.prepare(

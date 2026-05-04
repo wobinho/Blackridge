@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { initDb } from "@/lib/db";
-import { seedDatabase } from "@/lib/seed";
+import { seedDatabase, rollPartRarity, PART_RARITY_STAT_MULT, PART_RARITY_PRICE_MULT } from "@/lib/seed";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -18,17 +18,16 @@ export async function POST(req: NextRequest) {
   await seedDatabase(db);
 
   const entry = db.prepare(
-    `SELECT cq.id, cq.part_id, cq.engineer_id, cq.slot_index, cq.status, cq.completes_at, cq.quantity
+    `SELECT cq.id, cq.part_template_id, cq.engineer_id, cq.slot_index, cq.status, cq.completes_at
      FROM crafting_queue cq
      WHERE cq.id = ? AND cq.user_id = ?`
   ).get(queue_id, session.id) as {
     id: number;
-    part_id: number;
+    part_template_id: number;
     engineer_id: number | null;
     slot_index: number;
     status: string;
     completes_at: number;
-    quantity: number;
   } | undefined;
 
   if (!entry) return NextResponse.json({ error: "Craft job not found" }, { status: 404 });
@@ -39,41 +38,56 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not ready yet", remaining: entry.completes_at - now }, { status: 400 });
   }
 
-  // Get engineer quality bonus for the part quality calculation
-  let qualityBonus = 0;
+  // Free engineer
   if (entry.engineer_id) {
-    const eng = db.prepare(
-      `SELECT quality_bonus FROM engineers WHERE id = ?`
-    ).get(entry.engineer_id) as { quality_bonus: number } | undefined;
-    if (eng) qualityBonus = eng.quality_bonus;
     db.prepare(`UPDATE engineers SET status = 'idle' WHERE id = ?`).run(entry.engineer_id);
   }
 
-  // Quality: base 70, +0.3 per quality_bonus point, capped 100
-  const quality = Math.min(100, Math.round(70 + qualityBonus * 0.3));
+  // Roll rarity at claim time
+  const rarity = rollPartRarity();
+  const statMult = PART_RARITY_STAT_MULT[rarity];
+  const priceMult = PART_RARITY_PRICE_MULT[rarity];
 
-  // Add to inventory_parts (upsert by user+part, keeping max quality)
-  const existing = db.prepare(
-    `SELECT id, quantity FROM inventory_parts WHERE user_id = ? AND part_id = ?`
-  ).get(session.id, entry.part_id) as { id: number; quantity: number } | undefined;
+  // Fetch base stats from template
+  const tmpl = db.prepare(
+    `SELECT name, sell_price,
+            stat_speed, stat_acceleration, stat_handling, stat_stability,
+            stat_durability, stat_weight, stat_braking, stat_control,
+            stat_shift_speed, stat_efficiency, stat_grip, stat_cornering
+     FROM part_templates WHERE id = ?`
+  ).get(entry.part_template_id) as {
+    name: string; sell_price: number;
+    stat_speed: number; stat_acceleration: number; stat_handling: number; stat_stability: number;
+    stat_durability: number; stat_weight: number; stat_braking: number; stat_control: number;
+    stat_shift_speed: number; stat_efficiency: number; stat_grip: number; stat_cornering: number;
+  } | undefined;
 
-  if (existing) {
-    db.prepare(
-      `UPDATE inventory_parts SET quantity = quantity + ?, quality = MAX(quality, ?) WHERE user_id = ? AND part_id = ?`
-    ).run(entry.quantity, quality, session.id, entry.part_id);
-  } else {
-    db.prepare(
-      `INSERT INTO inventory_parts (user_id, part_id, quantity, quality) VALUES (?, ?, ?, ?)`
-    ).run(session.id, entry.part_id, entry.quantity, quality);
-  }
+  if (!tmpl) return NextResponse.json({ error: "Part template not found" }, { status: 500 });
+
+  const r = (v: number) => Math.round(v * statMult);
+
+  // Insert a new inventory_parts instance (each craft = one unique instance)
+  db.prepare(
+    `INSERT INTO inventory_parts
+       (user_id, part_template_id, rarity,
+        stat_speed, stat_acceleration, stat_handling, stat_stability,
+        stat_durability, stat_weight, stat_braking, stat_control,
+        stat_shift_speed, stat_efficiency, stat_grip, stat_cornering,
+        sale_price)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    session.id, entry.part_template_id, rarity,
+    r(tmpl.stat_speed), r(tmpl.stat_acceleration), r(tmpl.stat_handling), r(tmpl.stat_stability),
+    r(tmpl.stat_durability), r(tmpl.stat_weight), r(tmpl.stat_braking), r(tmpl.stat_control),
+    r(tmpl.stat_shift_speed), r(tmpl.stat_efficiency), r(tmpl.stat_grip), r(tmpl.stat_cornering),
+    Math.round(tmpl.sell_price * priceMult)
+  );
 
   db.prepare(`UPDATE crafting_queue SET status = 'completed' WHERE id = ?`).run(queue_id);
 
-  // Activity log
-  const partName = (db.prepare(`SELECT name FROM part_templates WHERE id = ?`).get(entry.part_id) as { name: string } | undefined)?.name ?? "Part";
   db.prepare(
     `INSERT INTO activity_log (user_id, type, message, data) VALUES (?, 'craft_complete', ?, ?)`
-  ).run(session.id, `Crafted ${partName}`, JSON.stringify({ part_id: entry.part_id, quality }));
+  ).run(session.id, `Crafted ${rarity} ${tmpl.name}`, JSON.stringify({ part_template_id: entry.part_template_id, rarity }));
 
-  return NextResponse.json({ success: true, quality, part_id: entry.part_id });
+  return NextResponse.json({ success: true, rarity, part_name: tmpl.name });
 }

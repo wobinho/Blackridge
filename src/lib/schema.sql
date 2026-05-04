@@ -15,9 +15,10 @@ CREATE TABLE IF NOT EXISTS users (
   email       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
   password    TEXT    NOT NULL,
   brand_name  TEXT    NOT NULL DEFAULT 'Unknown Brand',
-  brand_logo  TEXT,                         -- asset path
+  brand_logo  TEXT,
   prestige    INTEGER NOT NULL DEFAULT 0,
   credits     INTEGER NOT NULL DEFAULT 5000,
+  xgear       INTEGER NOT NULL DEFAULT 0,
   reputation  INTEGER NOT NULL DEFAULT 0,
   level       INTEGER NOT NULL DEFAULT 1,
   created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -32,22 +33,230 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 -- ============================================================
--- GAME DATA: DRIVER TEMPLATES (hardcoded logic, db data)
+-- MATERIALS
+-- No rarity — one row per material type
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS materials (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT    NOT NULL UNIQUE,
+  description TEXT,
+  image       TEXT,
+  art         TEXT,
+  base_value  INTEGER NOT NULL DEFAULT 10
+);
+
+-- ============================================================
+-- PLAYER INVENTORY: MATERIALS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS inventory_materials (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  material_id INTEGER NOT NULL REFERENCES materials(id),
+  quantity    INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(user_id, material_id)
+);
+
+-- ============================================================
+-- PART TEMPLATES
+-- One row per part category (engine, suspension, etc.)
+-- No rarity — rarity is rolled at craft time and stored on the instance
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS part_templates (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  name            TEXT    NOT NULL UNIQUE,
+  category        TEXT    NOT NULL CHECK (category IN ('engine','suspension','chassis','brakes','gearbox','tires')),
+  image           TEXT,
+  art             TEXT,
+  -- base stats (at common rarity)
+  stat_speed          INTEGER NOT NULL DEFAULT 0,   -- engine
+  stat_acceleration   INTEGER NOT NULL DEFAULT 0,   -- engine
+  stat_handling       INTEGER NOT NULL DEFAULT 0,   -- suspension
+  stat_stability      INTEGER NOT NULL DEFAULT 0,   -- suspension
+  stat_durability     INTEGER NOT NULL DEFAULT 0,   -- chassis
+  stat_weight         INTEGER NOT NULL DEFAULT 0,   -- chassis
+  stat_braking        INTEGER NOT NULL DEFAULT 0,   -- brakes
+  stat_control        INTEGER NOT NULL DEFAULT 0,   -- brakes
+  stat_shift_speed    INTEGER NOT NULL DEFAULT 0,   -- gearbox
+  stat_efficiency     INTEGER NOT NULL DEFAULT 0,   -- gearbox
+  stat_grip           INTEGER NOT NULL DEFAULT 0,   -- tires
+  stat_cornering      INTEGER NOT NULL DEFAULT 0,   -- tires
+  craft_time          INTEGER NOT NULL DEFAULT 300, -- seconds at common rarity
+  sell_price          INTEGER NOT NULL DEFAULT 500, -- base sell price at common
+  -- crafting recipe: JSON [{material_id, qty}]
+  recipe              TEXT    NOT NULL DEFAULT '[]'
+);
+
+-- ============================================================
+-- PLAYER INVENTORY: PARTS (crafted instances)
+-- Rarity is rolled at craft time
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS inventory_parts (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  part_template_id INTEGER NOT NULL REFERENCES part_templates(id),
+  rarity          TEXT    NOT NULL DEFAULT 'common' CHECK (rarity IN ('common','rare','epic','legendary','mythical')),
+  -- final stats (base * rarity multiplier, applied at craft time)
+  stat_speed          INTEGER NOT NULL DEFAULT 0,
+  stat_acceleration   INTEGER NOT NULL DEFAULT 0,
+  stat_handling       INTEGER NOT NULL DEFAULT 0,
+  stat_stability      INTEGER NOT NULL DEFAULT 0,
+  stat_durability     INTEGER NOT NULL DEFAULT 0,
+  stat_weight         INTEGER NOT NULL DEFAULT 0,
+  stat_braking        INTEGER NOT NULL DEFAULT 0,
+  stat_control        INTEGER NOT NULL DEFAULT 0,
+  stat_shift_speed    INTEGER NOT NULL DEFAULT 0,
+  stat_efficiency     INTEGER NOT NULL DEFAULT 0,
+  stat_grip           INTEGER NOT NULL DEFAULT 0,
+  stat_cornering      INTEGER NOT NULL DEFAULT 0,
+  status          TEXT    NOT NULL DEFAULT 'inventory' CHECK (status IN ('inventory','equipped','for_sale')),
+  sale_price      INTEGER,
+  crafted_at      INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- ============================================================
+-- CAR TEMPLATES
+-- Archetypes: sports_car, luxury_car, classic_car
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS car_templates (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT    NOT NULL,
+  model_code   TEXT    NOT NULL UNIQUE,  -- SC-1, SC-2, LC-1, LC-2, CC-1, CC-2
+  archetype    TEXT    NOT NULL CHECK (archetype IN ('sports_car','luxury_car','classic_car')),
+  image        TEXT,
+  art          TEXT,
+  description  TEXT,
+  -- base stats before parts
+  base_speed        INTEGER NOT NULL DEFAULT 0,
+  base_acceleration INTEGER NOT NULL DEFAULT 0,
+  base_handling     INTEGER NOT NULL DEFAULT 0,
+  base_stability    INTEGER NOT NULL DEFAULT 0,
+  base_durability   INTEGER NOT NULL DEFAULT 0,
+  base_weight       INTEGER NOT NULL DEFAULT 0,
+  base_braking      INTEGER NOT NULL DEFAULT 0,
+  base_control      INTEGER NOT NULL DEFAULT 0,
+  base_shift_speed  INTEGER NOT NULL DEFAULT 0,
+  base_efficiency   INTEGER NOT NULL DEFAULT 0,
+  base_grip         INTEGER NOT NULL DEFAULT 0,
+  base_cornering    INTEGER NOT NULL DEFAULT 0
+);
+
+-- ============================================================
+-- PLAYER BLUEPRINTS
+-- Row created on first acquisition; query LEFT JOINs car_templates for 0-qty display
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS user_blueprints (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  car_template_id INTEGER NOT NULL REFERENCES car_templates(id),
+  quantity        INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(user_id, car_template_id)
+);
+
+-- ============================================================
+-- CARS (assembled instances)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS cars (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  car_template_id INTEGER NOT NULL REFERENCES car_templates(id),
+  name            TEXT    NOT NULL,
+  color           TEXT    NOT NULL DEFAULT '#e8001c',
+  -- computed stats (base + parts), updated when parts change
+  stat_speed        INTEGER NOT NULL DEFAULT 0,
+  stat_acceleration INTEGER NOT NULL DEFAULT 0,
+  stat_handling     INTEGER NOT NULL DEFAULT 0,
+  stat_stability    INTEGER NOT NULL DEFAULT 0,
+  stat_durability   INTEGER NOT NULL DEFAULT 0,
+  stat_weight       INTEGER NOT NULL DEFAULT 0,
+  stat_braking      INTEGER NOT NULL DEFAULT 0,
+  stat_control      INTEGER NOT NULL DEFAULT 0,
+  stat_shift_speed  INTEGER NOT NULL DEFAULT 0,
+  stat_efficiency   INTEGER NOT NULL DEFAULT 0,
+  stat_grip         INTEGER NOT NULL DEFAULT 0,
+  stat_cornering    INTEGER NOT NULL DEFAULT 0,
+  wear            INTEGER NOT NULL DEFAULT 100,  -- 100 = brand new, decreases with use
+  status          TEXT    NOT NULL DEFAULT 'garage' CHECK (status IN ('garage','racing','crafting','for_sale','sold')),
+  sale_price      INTEGER,
+  total_races     INTEGER NOT NULL DEFAULT 0,
+  total_wins      INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- Parts equipped to a car (one row per slot)
+CREATE TABLE IF NOT EXISTS car_parts (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  car_id          INTEGER NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
+  inventory_part_id INTEGER NOT NULL REFERENCES inventory_parts(id),
+  slot            TEXT    NOT NULL CHECK (slot IN ('engine','suspension','chassis','brakes','gearbox','tires')),
+  UNIQUE(car_id, slot)
+);
+
+-- ============================================================
+-- CAR CRAFTING QUEUE
+-- Requires 6 parts + 2 engineers; car enters 'crafting' status
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS car_crafting_queue (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  car_template_id   INTEGER NOT NULL REFERENCES car_templates(id),
+  blueprint_id      INTEGER NOT NULL REFERENCES user_blueprints(id),
+  engineer_id_1     INTEGER NOT NULL REFERENCES engineers(id),
+  engineer_id_2     INTEGER NOT NULL REFERENCES engineers(id),
+  -- part instance IDs being used (one per slot)
+  part_engine_id    INTEGER NOT NULL REFERENCES inventory_parts(id),
+  part_suspension_id INTEGER NOT NULL REFERENCES inventory_parts(id),
+  part_chassis_id   INTEGER NOT NULL REFERENCES inventory_parts(id),
+  part_brakes_id    INTEGER NOT NULL REFERENCES inventory_parts(id),
+  part_gearbox_id   INTEGER NOT NULL REFERENCES inventory_parts(id),
+  part_tires_id     INTEGER NOT NULL REFERENCES inventory_parts(id),
+  status            TEXT    NOT NULL DEFAULT 'crafting' CHECK (status IN ('crafting','completed','cancelled')),
+  started_at        INTEGER NOT NULL DEFAULT (unixepoch()),
+  completes_at      INTEGER NOT NULL,
+  created_at        INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- ============================================================
+-- PART CRAFTING QUEUE (workshop — crafting parts from materials)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS crafting_queue (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  part_template_id INTEGER NOT NULL REFERENCES part_templates(id),
+  engineer_id     INTEGER REFERENCES engineers(id),
+  slot_index      INTEGER NOT NULL DEFAULT 0,
+  quantity        INTEGER NOT NULL DEFAULT 1,
+  status          TEXT    NOT NULL DEFAULT 'crafting' CHECK (status IN ('crafting','completed','cancelled')),
+  started_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+  completes_at    INTEGER NOT NULL,
+  created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- ============================================================
+-- DRIVER TEMPLATES
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS driver_templates (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  name        TEXT    NOT NULL,
-  nationality TEXT    NOT NULL DEFAULT 'Unknown',
-  portrait    TEXT,                           -- asset path placeholder
-  art         TEXT,                           -- slug used to resolve /assets/drivers/<art>.<ext>
-  base_speed  INTEGER NOT NULL DEFAULT 50,    -- 0-100
-  base_skill  INTEGER NOT NULL DEFAULT 50,
-  base_stamina INTEGER NOT NULL DEFAULT 50,
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  name            TEXT    NOT NULL,
+  nationality     TEXT    NOT NULL DEFAULT 'Unknown',
+  portrait        TEXT,
+  art             TEXT,
+  base_speed      INTEGER NOT NULL DEFAULT 50,
+  base_skill      INTEGER NOT NULL DEFAULT 50,
+  base_stamina    INTEGER NOT NULL DEFAULT 50,
   base_aggression INTEGER NOT NULL DEFAULT 50,
-  rarity      TEXT    NOT NULL DEFAULT 'common' CHECK (rarity IN ('common','rare','epic','legendary')),
-  unlock_cost INTEGER NOT NULL DEFAULT 1000,
-  bio         TEXT
+  rarity          TEXT    NOT NULL DEFAULT 'common' CHECK (rarity IN ('common','rare','epic','legendary')),
+  unlock_cost     INTEGER NOT NULL DEFAULT 1000,
+  bio             TEXT
 );
 
 -- ============================================================
@@ -65,7 +274,7 @@ CREATE TABLE IF NOT EXISTS drivers (
   skill         INTEGER NOT NULL DEFAULT 50,
   stamina       INTEGER NOT NULL DEFAULT 50,
   aggression    INTEGER NOT NULL DEFAULT 50,
-  morale        INTEGER NOT NULL DEFAULT 100,  -- 0-100
+  morale        INTEGER NOT NULL DEFAULT 100,
   wins          INTEGER NOT NULL DEFAULT 0,
   races         INTEGER NOT NULL DEFAULT 0,
   status        TEXT    NOT NULL DEFAULT 'idle' CHECK (status IN ('idle','racing','injured','retired')),
@@ -73,155 +282,7 @@ CREATE TABLE IF NOT EXISTS drivers (
 );
 
 -- ============================================================
--- CAR PARTS (templates)
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS part_templates (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  name         TEXT    NOT NULL,
-  category     TEXT    NOT NULL CHECK (category IN ('engine','chassis','suspension','aerodynamics','tyres','electronics','brakes')),
-  tier         INTEGER NOT NULL DEFAULT 1 CHECK (tier BETWEEN 1 AND 5),
-  rarity       TEXT    NOT NULL DEFAULT 'common' CHECK (rarity IN ('common','uncommon','rare','epic','legendary','mythical','event')),
-  image        TEXT,
-  art          TEXT,                           -- slug used to resolve /assets/parts/<art>.png
-  stat_speed   INTEGER NOT NULL DEFAULT 0,
-  stat_handling INTEGER NOT NULL DEFAULT 0,
-  stat_durability INTEGER NOT NULL DEFAULT 0,
-  stat_acceleration INTEGER NOT NULL DEFAULT 0,
-  craft_time   INTEGER NOT NULL DEFAULT 60,    -- seconds
-  sell_price   INTEGER NOT NULL DEFAULT 500,
-  ingredients  TEXT    NOT NULL DEFAULT '[]',  -- JSON: [{part_id, qty}]
-  base_materials TEXT  NOT NULL DEFAULT '[]'   -- JSON: [{material_id, qty}]
-);
-
--- ============================================================
--- MATERIALS (raw resources)
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS materials (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  name        TEXT    NOT NULL,
-  description TEXT,
-  image       TEXT,
-  art         TEXT,                           -- slug used to resolve /assets/materials/<art>.png
-  rarity      TEXT    NOT NULL DEFAULT 'common' CHECK (rarity IN ('common','uncommon','rare','epic','legendary','mythical','event')),
-  base_value  INTEGER NOT NULL DEFAULT 10
-);
-
--- ============================================================
--- PLAYER INVENTORY: PARTS
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS inventory_parts (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  part_id       INTEGER NOT NULL REFERENCES part_templates(id),
-  quantity      INTEGER NOT NULL DEFAULT 1,
-  quality       INTEGER NOT NULL DEFAULT 100,   -- 0-100 condition
-  for_sale      INTEGER NOT NULL DEFAULT 0,     -- boolean
-  sale_price    INTEGER,
-  crafted_at    INTEGER NOT NULL DEFAULT (unixepoch()),
-  UNIQUE(user_id, part_id)
-);
-
--- ============================================================
--- PLAYER INVENTORY: MATERIALS
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS inventory_materials (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  material_id INTEGER NOT NULL REFERENCES materials(id),
-  quantity    INTEGER NOT NULL DEFAULT 0,
-  UNIQUE(user_id, material_id)
-);
-
--- ============================================================
--- CARS (assembled)
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS car_templates (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  name         TEXT    NOT NULL,
-  model_code   TEXT    NOT NULL UNIQUE,
-  image        TEXT,
-  art          TEXT,                           -- slug used to resolve /assets/cars/<art>.<ext>
-  tier         INTEGER NOT NULL DEFAULT 1,
-  base_speed   INTEGER NOT NULL DEFAULT 50,
-  base_handling INTEGER NOT NULL DEFAULT 50,
-  description  TEXT,
-  unlock_level INTEGER NOT NULL DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS cars (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  template_id  INTEGER NOT NULL REFERENCES car_templates(id),
-  name         TEXT    NOT NULL,
-  color        TEXT    NOT NULL DEFAULT '#e8001c',
-  speed        INTEGER NOT NULL DEFAULT 50,
-  handling     INTEGER NOT NULL DEFAULT 50,
-  durability   INTEGER NOT NULL DEFAULT 100,
-  acceleration INTEGER NOT NULL DEFAULT 50,
-  status       TEXT    NOT NULL DEFAULT 'garage' CHECK (status IN ('garage','racing','for_sale','sold')),
-  sale_price   INTEGER,
-  total_races  INTEGER NOT NULL DEFAULT 0,
-  total_wins   INTEGER NOT NULL DEFAULT 0,
-  created_at   INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
--- Parts installed on a car
-CREATE TABLE IF NOT EXISTS car_parts (
-  id        INTEGER PRIMARY KEY AUTOINCREMENT,
-  car_id    INTEGER NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
-  part_id   INTEGER NOT NULL REFERENCES part_templates(id),
-  slot      TEXT    NOT NULL CHECK (slot IN ('engine','chassis','suspension','aerodynamics','tyres','electronics','brakes'))
-);
-
--- ============================================================
--- RACE CIRCUITS
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS circuits (
-  id               INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  name             TEXT    NOT NULL,
-  location         TEXT    NOT NULL,
-  image            TEXT,
-  difficulty       INTEGER NOT NULL DEFAULT 1 CHECK (difficulty BETWEEN 1 AND 5),
-  laps             INTEGER NOT NULL DEFAULT 10,
-  reward_credits   INTEGER NOT NULL DEFAULT 500,
-  reward_materials TEXT    NOT NULL DEFAULT '[]',  -- JSON: [{material_id, qty}]
-  reward_prestige  INTEGER NOT NULL DEFAULT 10,
-  unlock_level     INTEGER NOT NULL DEFAULT 1,
-  description      TEXT,
-  archetype        TEXT,                           -- NULL = any car allowed, else e.g. 'street','gt','touring'
-  min_speed        INTEGER NOT NULL DEFAULT 0,
-  min_handling     INTEGER NOT NULL DEFAULT 0,
-  duration_seconds INTEGER NOT NULL DEFAULT 300,   -- race idle time in seconds
-  podium_rewards   TEXT    NOT NULL DEFAULT '[]'   -- JSON: [{position, credits_bonus, prestige_bonus}]
-);
-
--- ============================================================
--- RACE EVENTS (auto-battle sessions)
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS races (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  circuit_id   INTEGER NOT NULL REFERENCES circuits(id),
-  driver_id    INTEGER NOT NULL REFERENCES drivers(id),
-  engineer_id  INTEGER REFERENCES engineers(id),
-  car_id       INTEGER NOT NULL REFERENCES cars(id),
-  status       TEXT    NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','in_progress','completed','failed')),
-  result       TEXT,              -- JSON: {position, credits_earned, prestige_earned, materials:[{name,qty}]}
-  started_at   INTEGER NOT NULL DEFAULT (unixepoch()),
-  completes_at INTEGER NOT NULL,
-  completed_at INTEGER,
-  created_at   INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
--- ============================================================
--- ENGINEER TEMPLATES (hardcoded logic, db data)
+-- ENGINEER TEMPLATES
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS engineer_templates (
@@ -230,9 +291,9 @@ CREATE TABLE IF NOT EXISTS engineer_templates (
   nationality         TEXT    NOT NULL DEFAULT 'Unknown',
   portrait            TEXT,
   art                 TEXT,
-  base_craft_speed    INTEGER NOT NULL DEFAULT 50,  -- 0-100, reduces craft time
-  base_quality_bonus  INTEGER NOT NULL DEFAULT 50,  -- 0-100, improves output quality
-  base_race_bonus     INTEGER NOT NULL DEFAULT 20,  -- 0-100, boosts car stats in races
+  base_craft_speed    INTEGER NOT NULL DEFAULT 50,
+  base_quality_bonus  INTEGER NOT NULL DEFAULT 50,
+  base_race_bonus     INTEGER NOT NULL DEFAULT 20,
   rarity              TEXT    NOT NULL DEFAULT 'common' CHECK (rarity IN ('common','rare','epic','legendary')),
   unlock_cost         INTEGER NOT NULL DEFAULT 1000,
   bio                 TEXT
@@ -257,48 +318,73 @@ CREATE TABLE IF NOT EXISTS engineers (
 );
 
 -- ============================================================
--- WORKSHOP UPGRADES (per user progression)
+-- RACE CIRCUITS
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS workshop_upgrades (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-  develop_slots     INTEGER NOT NULL DEFAULT 2,   -- max crafting queue slots
-  develop_speed     INTEGER NOT NULL DEFAULT 1,   -- multiplier level (1 = base)
-  inventory_size    INTEGER NOT NULL DEFAULT 20,  -- max inventory part count
-  engineer_cap      INTEGER NOT NULL DEFAULT 3,   -- max engineers owned
-  driver_cap        INTEGER NOT NULL DEFAULT 5,   -- max drivers owned
-  garage_cap        INTEGER NOT NULL DEFAULT 10,  -- max cars owned
-  market_mat_slots  INTEGER NOT NULL DEFAULT 0,   -- bonus material market slots (+2 each level, max 4 upgrades = 8 bonus → 12 total)
-  market_mat_rarity INTEGER NOT NULL DEFAULT 0    -- rarity boost level for material market (max 5)
+CREATE TABLE IF NOT EXISTS circuits (
+  id               INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  name             TEXT    NOT NULL,
+  location         TEXT    NOT NULL,
+  image            TEXT,
+  difficulty       INTEGER NOT NULL DEFAULT 1 CHECK (difficulty BETWEEN 1 AND 5),
+  laps             INTEGER NOT NULL DEFAULT 10,
+  reward_credits   INTEGER NOT NULL DEFAULT 500,
+  reward_materials TEXT    NOT NULL DEFAULT '[]',  -- JSON: [{material_id, qty}]
+  reward_prestige  INTEGER NOT NULL DEFAULT 10,
+  unlock_level     INTEGER NOT NULL DEFAULT 1,
+  description      TEXT,
+  archetype        TEXT,                            -- NULL = any archetype allowed
+  min_speed        INTEGER NOT NULL DEFAULT 0,
+  min_handling     INTEGER NOT NULL DEFAULT 0,
+  duration_seconds INTEGER NOT NULL DEFAULT 300,
+  podium_rewards   TEXT    NOT NULL DEFAULT '[]'   -- JSON: [{position, credits_bonus, prestige_bonus}]
 );
 
 -- ============================================================
--- CRAFTING QUEUE
+-- RACE EVENTS
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS crafting_queue (
+CREATE TABLE IF NOT EXISTS races (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  part_id      INTEGER NOT NULL REFERENCES part_templates(id),
+  circuit_id   INTEGER NOT NULL REFERENCES circuits(id),
+  driver_id    INTEGER NOT NULL REFERENCES drivers(id),
   engineer_id  INTEGER REFERENCES engineers(id),
-  slot_index   INTEGER NOT NULL DEFAULT 0,      -- which develop slot (0-based)
-  quantity     INTEGER NOT NULL DEFAULT 1,
-  status       TEXT    NOT NULL DEFAULT 'crafting' CHECK (status IN ('crafting','completed','cancelled')),
+  car_id       INTEGER NOT NULL REFERENCES cars(id),
+  status       TEXT    NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','in_progress','completed','failed')),
+  result       TEXT,
   started_at   INTEGER NOT NULL DEFAULT (unixepoch()),
   completes_at INTEGER NOT NULL,
+  completed_at INTEGER,
   created_at   INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 -- ============================================================
--- MARKETPLACE (player-to-player listing)
+-- WORKSHOP UPGRADES (per user)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS workshop_upgrades (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+  develop_slots     INTEGER NOT NULL DEFAULT 2,
+  develop_speed     INTEGER NOT NULL DEFAULT 1,
+  inventory_size    INTEGER NOT NULL DEFAULT 20,
+  engineer_cap      INTEGER NOT NULL DEFAULT 3,
+  driver_cap        INTEGER NOT NULL DEFAULT 5,
+  garage_cap        INTEGER NOT NULL DEFAULT 10,
+  market_mat_slots  INTEGER NOT NULL DEFAULT 0,
+  market_mat_rarity INTEGER NOT NULL DEFAULT 0
+);
+
+-- ============================================================
+-- MARKETPLACE (player-to-player)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS market_listings (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   seller_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   listing_type TEXT    NOT NULL CHECK (listing_type IN ('car','part')),
-  item_id      INTEGER NOT NULL,              -- car_id or inventory_parts.id
+  item_id      INTEGER NOT NULL,
   price        INTEGER NOT NULL,
   description  TEXT,
   status       TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active','sold','cancelled')),
@@ -308,7 +394,45 @@ CREATE TABLE IF NOT EXISTS market_listings (
 );
 
 -- ============================================================
--- LEADERBOARDS (denormalized for performance)
+-- MARKET: MATERIAL SLOTS (6 rotating slots, refreshes every 3 min)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS market_material_slots (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  slot_index      INTEGER NOT NULL UNIQUE CHECK (slot_index BETWEEN 0 AND 5),
+  material_id     INTEGER NOT NULL REFERENCES materials(id),
+  quantity        INTEGER NOT NULL DEFAULT 1,
+  price_per_unit  INTEGER NOT NULL DEFAULT 10,
+  refresh_at      INTEGER NOT NULL DEFAULT 0
+);
+
+-- ============================================================
+-- MARKET: PART LISTINGS (rotating hourly)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS market_part_listings (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  part_id     INTEGER NOT NULL REFERENCES part_templates(id),
+  price       INTEGER NOT NULL,
+  quantity    INTEGER NOT NULL DEFAULT 1,
+  listed_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+  expires_at  INTEGER NOT NULL
+);
+
+-- ============================================================
+-- GACHA: PITY TRACKING
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS gacha_pity (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  banner      TEXT NOT NULL CHECK (banner IN ('driver','engineer')),
+  pity_count  INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(user_id, banner)
+);
+
+-- ============================================================
+-- LEADERBOARDS
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
@@ -326,71 +450,31 @@ CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS activity_log (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type       TEXT    NOT NULL,   -- 'race_complete','craft_complete','sale','purchase', etc.
-  message    TEXT    NOT NULL,
-  credits_delta INTEGER NOT NULL DEFAULT 0,
-  prestige_delta INTEGER NOT NULL DEFAULT 0,
-  data       TEXT    DEFAULT '{}',  -- JSON payload
-  created_at INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
--- ============================================================
--- PREMIUM CURRENCY (XGEAR)
--- ============================================================
--- xgear column added to users via ALTER TABLE migration in db.ts
-
--- ============================================================
--- MARKET: MATERIAL SLOTS (6 rotating buy slots, refreshes every 3 min)
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS market_material_slots (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  slot_index      INTEGER NOT NULL UNIQUE CHECK (slot_index BETWEEN 0 AND 5),
-  material_id     INTEGER NOT NULL REFERENCES materials(id),
-  quantity        INTEGER NOT NULL DEFAULT 1,
-  price_per_unit  INTEGER NOT NULL DEFAULT 10,
-  refresh_at      INTEGER NOT NULL DEFAULT 0  -- unix epoch when slot refreshes next
-);
-
--- ============================================================
--- MARKET: PART LISTINGS (rotating hourly)
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS market_part_listings (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  part_id     INTEGER NOT NULL REFERENCES part_templates(id),
-  price       INTEGER NOT NULL,
-  quantity    INTEGER NOT NULL DEFAULT 1,
-  listed_at   INTEGER NOT NULL DEFAULT (unixepoch()),
-  expires_at  INTEGER NOT NULL  -- unix epoch, refreshes every 3600s
-);
-
--- ============================================================
--- GACHA: PITY TRACKING
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS gacha_pity (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  banner      TEXT NOT NULL CHECK (banner IN ('driver', 'engineer')),
-  pity_count  INTEGER NOT NULL DEFAULT 0,  -- rolls since last epic/legendary
-  UNIQUE(user_id, banner)
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type            TEXT    NOT NULL,
+  message         TEXT    NOT NULL,
+  credits_delta   INTEGER NOT NULL DEFAULT 0,
+  prestige_delta  INTEGER NOT NULL DEFAULT 0,
+  data            TEXT    DEFAULT '{}',
+  created_at      INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 -- ============================================================
 -- INDEXES
 -- ============================================================
 
-CREATE INDEX IF NOT EXISTS idx_drivers_user ON drivers(user_id);
-CREATE INDEX IF NOT EXISTS idx_cars_user ON cars(user_id);
-CREATE INDEX IF NOT EXISTS idx_races_user ON races(user_id);
-CREATE INDEX IF NOT EXISTS idx_races_status ON races(status);
-CREATE INDEX IF NOT EXISTS idx_crafting_user ON crafting_queue(user_id);
-CREATE INDEX IF NOT EXISTS idx_crafting_status ON crafting_queue(status);
-CREATE INDEX IF NOT EXISTS idx_market_active ON market_listings(status);
-CREATE INDEX IF NOT EXISTS idx_leaderboard_cat ON leaderboard_snapshots(category, score DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_log(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_engineers_user ON engineers(user_id);
+CREATE INDEX IF NOT EXISTS idx_drivers_user        ON drivers(user_id);
+CREATE INDEX IF NOT EXISTS idx_cars_user           ON cars(user_id);
+CREATE INDEX IF NOT EXISTS idx_races_user          ON races(user_id);
+CREATE INDEX IF NOT EXISTS idx_races_status        ON races(status);
+CREATE INDEX IF NOT EXISTS idx_crafting_user       ON crafting_queue(user_id);
+CREATE INDEX IF NOT EXISTS idx_crafting_status     ON crafting_queue(status);
+CREATE INDEX IF NOT EXISTS idx_car_crafting_user   ON car_crafting_queue(user_id);
+CREATE INDEX IF NOT EXISTS idx_market_active       ON market_listings(status);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_cat     ON leaderboard_snapshots(category, score DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_user       ON activity_log(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_user       ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_engineers_user      ON engineers(user_id);
+CREATE INDEX IF NOT EXISTS idx_inv_parts_user      ON inventory_parts(user_id);
+CREATE INDEX IF NOT EXISTS idx_blueprints_user     ON user_blueprints(user_id);

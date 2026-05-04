@@ -5,7 +5,7 @@
 - CRAFTING: {CARS}, {PARTS}, {MATERIALS}, {ENGINEERS}, basically crafting is the process of turning materials into parts, then this parts would then be used to create the car that you want, there would be car blueprints that should show you which type of parts you need to create a specific car, engineers will then be assigned to craft those parts, and develop the car, engineers influences also speed of crafting and the quality of the result.
 - MARKET: {CARS}, {PARTS}, {MATERIALS}, {CASH}, the market is the third pillar of this game, the game allows you to sell the cars that you create. there is also a market to buy the raw materials from, but these parts are only the generic parts that are used to create common cars, maybe sometimes there are available good parts.
 - CURRENCY: the game has 2 currencies: {CASH} and {XGEAR}, Cash is the main currency, this is what you normally use to buy/sell everything, buying or selling parts, cars, materials, etc. Rewards for races also cash. {XGEAR} is a premium currency, can be bought with real money. {XGEAR} can also be obtained in the game like maybe podium places on races, etc.
-- DISCLAIMER: CARS, PARTS, MATERIALS, do not have any sort of rarity or tiers. Only DRIVERS and ENGINEERS.
+- DISCLAIMER: CARS, and MATERIALS, do not have any sort of rarity or tiers. Only DRIVERS and ENGINEERS and PARTS.
 
 **PAGES:**
 - MARKET: in the market page, there should be the following tabs within the 'market' page: {MATERIALS}, {PARTS}, {CARS}, {DRIVERS & ENGINEERS}. In the materials tab, this should show you 6 slots (for now) to buy materials from, each one of these slots has a percent rate as to which materials can be bought, for example, Slot 1 (Wood 50% [cheap],  Slot 2 (Iron 50% [common]), Slot 3(Steel 50% [uncommon]), Slot 4 (Alloy 25% [rare]), Slot 5 (Titanium 10% [epic]), Slot 6 (Carbon fiber 5% [legendary]), quantity should also be set (more common = more quantity per batch). These materials and percentage are example only. Then, a feature I want is that the parts market should refresh every 3 minutes, so that players can get new parts to buy. The same logic applies to {PARTS} as well but for parts the refresh is every hour. For {DRIVERS &ENGINEERS}, is a different type of market. They use {XGEAR}, what happens is that in this tab you can select from the 2 banners, the driver banner, and the engineer banner. selecting either would then prompt you 100 {XGEAR} to roll for a driver or engineer (1x), how it works would be it will show you 10 random cards (depending on if driver or engineer banner you selected) face down. Each of this cards has a pool of {DRIVERS} or {ENGINEERS} with different rarity and different odds. For the Driver pool, example: 60% Common (5 drivers), 30% Rare (3 drivers), 10% Epic or greater (1 driver). Same logic applies to engineers. All 10 cards are faced down, then let the user select which one they want to recruit. After selecting, reveal the card they selected, and also reveal the other 9 cards to see what they could have possibly gotten. The {CARS} tab are the other users car that they listed for sale.
@@ -34,15 +34,28 @@ THINGS TO KEEP IN MIND:
 
 
 MATERIALS:
-- Materials have the following attributes: {NAME}, {DESCRIPTION}, {TIER/RARITY}, {BASE_VALUE}, {ART/IMAGE}
-- Rarity are the following: {COMMON}, {UNCOMMON}, {RARE}, {EPIC}, {LEGENDARY}, {MYTHICAL}, {EVENT}
+- Materials have the following attributes: {NAME}, {DESCRIPTION}, {BASE_VALUE}, {ART/IMAGE}
 - Each of the materials can be any of the rarity, so there could be a common aluminum sheet, an uncommon aluminum sheet, a rare aluminum sheet, etc.
-- The rarity difference is only on its base value, so a rare aluminum sheet is more expensive than a common aluminum sheet.
 - There should be a 1x1 image placeholder for the materials. Use placeholder for now.
 - We will be using PNG for this and not SVG.
 
 PARTS:
 - Parts have the following attributes: {NAME}, {CATEGORY}, {TIER/RARITY}, {ART}, the different {STATS} (this can be found in the database), {CRAFT TIME}, {SELL PRICE}, and the materials needed to craft.
 - Parts also have rarity, and similar to materials, the rarity only affects the sell price, and the stats.
-- Parts can only be crafted with the same rarity, so for example, a Rare Engine, needs rare materials to be crafted. It also gives better stats than common parts, and has a higher sell price. a Legendary engine would need legendary materials to craft, and would provide even better stats than a rare engine and so on.
 - There should be a 1x1 image placeholder for the parts. Use placeholder for now.
+
+
+CAR CRAFTING:
+- Here is how I want the car development architecture for the game to be: First each car has an archetype and a model. the archetypes for version 1 are the following: {SPORTS CAR}, {LUXURY CAR}, {CLASSIC CAR}, and the following are the first models for version 1: {SC-1} and {SC-2} are sports cars, {LC-1} and {LC-2} are luxury cars, {CC-1} and {CC-2} are classic cars. So we will only have 6 cars in total for the first version.
+- For crafting a car the slots are: {ENGINE}, {SUSPENSION}, {CHASSIS}, {BRAKES}, {GEARBOX}, {TIRES}
+- Each car has 12 stats and are influenced depending on the part used: {ENGINE} influences {SPEED} and {ACCELERATION}, {SUSPENSION} influences {HANDLING} and {STABILITY}, {CHASSIS} influences {DURABILITY} and {WEIGHT}, {BRAKES} influences {BRAKING} and {CONTROL}, {GEARBOX} influences {SHIFT_SPEED} and {EFFICIENCY}, {TIRES} influences {GRIP} and {CORNERING}.
+- To craft a car we have a BLUEPRINT system. This will determine what car you are crafting. CAR BLUEPRINTS ARE NOT INFINITE. For example, you obtained a blueprint for {SC-1} which usually blueprints can craft 3x or 5x or 10x depending on the blueprint. After using 1 blueprint, the count goes down. You can obtain blueprints as rewards from races, or from events.
+
+PARTS:
+- Since we already discussed the parts which are based on the slots: {ENGINE}, {SUSPENSION}, {CHASSIS}, {BRAKES}, {GEARBOX}, {TIRES}.
+- Let us now discuss the parts, basically a part has these important information regarding them: the name (like engine, suspension), the rarity (common, rare, epic, legendary, mythical, event), the 2 stats it influences (like for engine is speed and acceleration).
+
+MATERIALS:
+- Materials are used to craft parts, here are the materials for the version 1 of the game: {STEEL}, {ALUMINUM}, {CARBON}, {TITANIUM}, {POLYMER}, {HARDWARE}, {ELECTRONICS}, {COMPOUNDS}, {POLYMER}, {FLUIDS}, {TRIMS}.
+- Here is the recipe to craft each part: ENGINE = TITANIUM + HARDWARE + FLUIDS, SUSPENSION = ALUMINUM + HARDWARE + COMPOUNDS, CHASSIS = CARBON + STEEL + TRIMS, BRAKES = TITANIUM + ELECTRONICS + FLUIDS, GEARBOX = STEEL + HARDWARE + ELECTRONICS, TIRES = CARBON + COMPOUNDS + POLYMER.
+- Parts do not have rarity. But it will have a chance to be a high rarity parts when crafted: 45% common part, 25% rare part, 15% epic part, 10% legendary part, 5% mythical part. (EVENT RARITY ARE FOR EVENTS ONLY, SO IGNORE THOSE FOR NOW)

@@ -46,13 +46,14 @@ export function getDb(): DbWrapper {
 export async function initDb(): Promise<DbWrapper> {
   if (wrapper) return wrapper;
 
-  if (!fs.existsSync(DB_PATH)) {
-    throw new Error("Database file not found: data/blackridge.db must exist.");
-  }
-
   const SQL = await getSqlJs();
-  const fileBuffer = fs.readFileSync(DB_PATH);
-  db = new SQL.Database(fileBuffer);
+
+  if (!fs.existsSync(DB_PATH)) {
+    db = new SQL.Database();
+  } else {
+    const fileBuffer = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(fileBuffer);
+  }
 
   // Apply schema (all CREATE TABLE IF NOT EXISTS — safe to re-run)
   const schema = fs.readFileSync(SCHEMA_PATH, "utf-8");
@@ -69,21 +70,26 @@ export async function initDb(): Promise<DbWrapper> {
 
 function applyColumnMigrations(database: import("sql.js").Database): void {
   const pending: Array<{ table: string; column: string; def: string }> = [
-    { table: "driver_templates", column: "art",              def: "TEXT" },
-    { table: "car_templates",    column: "art",              def: "TEXT" },
-    { table: "part_templates",   column: "art",              def: "TEXT" },
-    { table: "crafting_queue",   column: "engineer_id",      def: "INTEGER" },
-    { table: "crafting_queue",   column: "slot_index",       def: "INTEGER NOT NULL DEFAULT 0" },
-    { table: "users",            column: "xgear",            def: "INTEGER NOT NULL DEFAULT 0" },
-    { table: "circuits",         column: "archetype",        def: "TEXT" },
-    { table: "circuits",         column: "min_speed",        def: "INTEGER NOT NULL DEFAULT 0" },
-    { table: "circuits",         column: "min_handling",     def: "INTEGER NOT NULL DEFAULT 0" },
-    { table: "circuits",         column: "duration_seconds", def: "INTEGER NOT NULL DEFAULT 300" },
-    { table: "circuits",         column: "podium_rewards",   def: "TEXT NOT NULL DEFAULT '[]'" },
-    { table: "races",            column: "engineer_id",      def: "INTEGER" },
-    { table: "races",            column: "completes_at",     def: "INTEGER NOT NULL DEFAULT (unixepoch())" },
-    { table: "materials",        column: "art",              def: "TEXT" },
-    { table: "part_templates",   column: "rarity",           def: "TEXT NOT NULL DEFAULT 'common'" },
+    // users
+    { table: "users",              column: "xgear",             def: "INTEGER NOT NULL DEFAULT 0" },
+    // circuits
+    { table: "circuits",           column: "archetype",         def: "TEXT" },
+    { table: "circuits",           column: "min_speed",         def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "circuits",           column: "min_handling",      def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "circuits",           column: "duration_seconds",  def: "INTEGER NOT NULL DEFAULT 300" },
+    { table: "circuits",           column: "podium_rewards",    def: "TEXT NOT NULL DEFAULT '[]'" },
+    // races
+    { table: "races",              column: "engineer_id",       def: "INTEGER" },
+    { table: "races",              column: "completes_at",      def: "INTEGER NOT NULL DEFAULT (unixepoch())" },
+    // crafting_queue (part crafting)
+    { table: "crafting_queue",     column: "engineer_id",       def: "INTEGER" },
+    { table: "crafting_queue",     column: "slot_index",        def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "crafting_queue",     column: "part_template_id",  def: "INTEGER" },
+    // workshop upgrades
+    { table: "workshop_upgrades",  column: "market_mat_slots",  def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "workshop_upgrades",  column: "market_mat_rarity", def: "INTEGER NOT NULL DEFAULT 0" },
+    // materials
+    { table: "materials",          column: "art",               def: "TEXT" },
   ];
   for (const m of pending) {
     try {

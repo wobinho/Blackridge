@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
            r.status, r.completes_at,
            c.reward_credits, c.reward_materials, c.reward_prestige, c.podium_rewards,
            d.speed as driver_speed, d.skill as driver_skill,
-           car.speed as car_speed, car.handling as car_handling,
+           car.stat_speed as car_speed, car.stat_handling as car_handling,
            COALESCE(e.race_bonus, 0) as engineer_bonus
     FROM races r
     JOIN circuits c ON c.id = r.circuit_id

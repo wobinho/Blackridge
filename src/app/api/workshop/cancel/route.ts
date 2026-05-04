@@ -18,24 +18,24 @@ export async function POST(req: NextRequest) {
   await seedDatabase(db);
 
   const entry = db.prepare(
-    `SELECT cq.id, cq.part_id, cq.engineer_id, cq.status, cq.started_at, pt.base_materials
+    `SELECT cq.id, cq.part_template_id, cq.engineer_id, cq.status, cq.started_at, pt.recipe
      FROM crafting_queue cq
-     JOIN part_templates pt ON pt.id = cq.part_id
+     JOIN part_templates pt ON pt.id = cq.part_template_id
      WHERE cq.id = ? AND cq.user_id = ?`
   ).get(queue_id, session.id) as {
     id: number;
-    part_id: number;
+    part_template_id: number;
     engineer_id: number | null;
     status: string;
     started_at: number;
-    base_materials: string;
+    recipe: string;
   } | undefined;
 
   if (!entry) return NextResponse.json({ error: "Craft job not found" }, { status: 404 });
   if (entry.status !== "crafting") return NextResponse.json({ error: "Job cannot be cancelled" }, { status: 409 });
 
   // Refund 50% of materials
-  const ingredients = JSON.parse(entry.base_materials) as { material_id: number; qty: number }[];
+  const ingredients = JSON.parse(entry.recipe) as { material_id: number; qty: number }[];
   for (const ing of ingredients) {
     const refundQty = Math.floor(ing.qty * 0.5);
     if (refundQty > 0) {
@@ -46,7 +46,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Free engineer
   if (entry.engineer_id) {
     db.prepare(`UPDATE engineers SET status = 'idle' WHERE id = ?`).run(entry.engineer_id);
   }

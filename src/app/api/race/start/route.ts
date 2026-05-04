@@ -39,17 +39,17 @@ export async function POST(req: NextRequest) {
 
   // Validate car belongs to user and is in garage
   const car = db.prepare(
-    `SELECT id, status, speed, handling FROM cars WHERE id = ? AND user_id = ?`
-  ).get(car_id, session.id) as { id: number; status: string; speed: number; handling: number } | undefined;
+    `SELECT id, status, stat_speed, stat_handling FROM cars WHERE id = ? AND user_id = ?`
+  ).get(car_id, session.id) as { id: number; status: string; stat_speed: number; stat_handling: number } | undefined;
   if (!car) return NextResponse.json({ error: "Car not found" }, { status: 404 });
   if (car.status !== "garage") return NextResponse.json({ error: "Car is not available" }, { status: 400 });
 
   // Check min requirements
-  if (circuit.min_speed > 0 && car.speed < circuit.min_speed) {
-    return NextResponse.json({ error: `Car speed (${car.speed}) below circuit minimum (${circuit.min_speed})` }, { status: 400 });
+  if (circuit.min_speed > 0 && car.stat_speed < circuit.min_speed) {
+    return NextResponse.json({ error: `Car speed (${car.stat_speed}) below circuit minimum (${circuit.min_speed})` }, { status: 400 });
   }
-  if (circuit.min_handling > 0 && car.handling < circuit.min_handling) {
-    return NextResponse.json({ error: `Car handling (${car.handling}) below circuit minimum (${circuit.min_handling})` }, { status: 400 });
+  if (circuit.min_handling > 0 && car.stat_handling < circuit.min_handling) {
+    return NextResponse.json({ error: `Car handling (${car.stat_handling}) below circuit minimum (${circuit.min_handling})` }, { status: 400 });
   }
 
   // Validate engineer if provided

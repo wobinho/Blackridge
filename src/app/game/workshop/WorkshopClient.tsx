@@ -132,7 +132,7 @@ function MaterialsStrip({ materials }: { materials: MaterialStock[] }) {
   return (
     <div className="ws-materials-strip">
       {materials.map((m) => {
-        const col = MATERIAL_RARITY_COLOR[m.rarity] ?? "#aaa";
+        const col = "#888";
         return (
           <div key={m.id} className="ws-material-chip" style={{ borderColor: col + "33" }}>
             <span className="ws-material-dot" style={{ background: col, boxShadow: `0 0 4px ${col}88` }} />
@@ -332,7 +332,7 @@ function BuildModal({
   }, []);
 
   function canAfford(part: PartTemplate): boolean {
-    const ingredients = JSON.parse(part.base_materials) as { material_id: number; qty: number }[];
+    const ingredients = JSON.parse(part.recipe) as { material_id: number; qty: number }[];
     return ingredients.every((ing) => (matMap[ing.material_id] ?? 0) >= ing.qty);
   }
 
@@ -350,7 +350,7 @@ function BuildModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          part_id: selectedPart.id,
+          part_template_id: selectedPart.id,
           slot_index: slotIndex,
           engineer_id: selectedEngineer?.id ?? undefined,
         }),
@@ -440,7 +440,7 @@ function BuildModal({
             <div className="ws-part-grid">
               {filteredParts.map((part) => {
                 const affordable = canAfford(part);
-                const ingredients = JSON.parse(part.base_materials) as { material_id: number; qty: number }[];
+                const ingredients = JSON.parse(part.recipe) as { material_id: number; qty: number }[];
                 const isSelected = selectedPart?.id === part.id;
 
                 return (
@@ -461,7 +461,6 @@ function BuildModal({
                         <CategoryIcon category={part.category} size={12} color={isSelected ? "#e8001c" : "#666"} />
                         <span className="ws-part-name">{part.name}</span>
                       </div>
-                      <span className="ws-part-tier">T{part.tier}</span>
                     </div>
                     <div className="ws-part-craft-time">
                       <svg viewBox="0 0 24 24" className="w-2.5 h-2.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -518,7 +517,6 @@ function BuildModal({
                   <div className="flex items-center gap-2">
                     <CategoryIcon category={selectedPart.category} size={12} color="#e8001c" />
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "white" }}>{selectedPart.name}</span>
-                    <span className="ws-part-tier">T{selectedPart.tier}</span>
                   </div>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--color-text-muted)" }}>
                     {formatCraftTime(selectedPart.craft_time)} base
@@ -793,8 +791,27 @@ function EngineerModal({ engineer, onClose }: { engineer: EngineerFull; onClose:
 
 // ─── Inventory Part Card ─────────────────────────────────────────────────────
 
+const RARITY_COLORS: Record<string, string> = {
+  common: "#888", rare: "#3b82f6", epic: "#a855f7", legendary: "#c9a84c", mythical: "#e8001c",
+};
+
 function InventoryCard({ part, index }: { part: InventoryPart; index: number }) {
-  const qColor = qualityColor(part.quality);
+  const rarityColor = RARITY_COLORS[part.rarity] ?? "#888";
+  const activeStats = [
+    { label: "SPD", value: part.stat_speed },
+    { label: "ACC", value: part.stat_acceleration },
+    { label: "HDL", value: part.stat_handling },
+    { label: "STB", value: part.stat_stability },
+    { label: "DUR", value: part.stat_durability },
+    { label: "WGT", value: part.stat_weight },
+    { label: "BRK", value: part.stat_braking },
+    { label: "CTL", value: part.stat_control },
+    { label: "SFT", value: part.stat_shift_speed },
+    { label: "EFF", value: part.stat_efficiency },
+    { label: "GRP", value: part.stat_grip },
+    { label: "CRN", value: part.stat_cornering },
+  ].filter((s) => s.value > 0);
+
   return (
     <div className="ws-inv-card" style={{ animationDelay: `${index * 30}ms` }}>
       <div className="ws-inv-card-header">
@@ -802,28 +819,14 @@ function InventoryCard({ part, index }: { part: InventoryPart; index: number }) 
           <CategoryIcon category={part.category} size={10} color="#666" />
           <span>{categoryLabel(part.category)}</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="ws-inv-tier">T{part.tier}</span>
-          <span className="ws-inv-qty">×{part.quantity}</span>
-        </div>
+        <span className="ws-inv-tier" style={{ color: rarityColor, textTransform: "uppercase", fontSize: "9px" }}>{part.rarity}</span>
       </div>
       <p className="ws-inv-name">{part.name}</p>
-      <div className="ws-inv-quality">
-        <div className="ws-inv-quality-track">
-          <div className="ws-inv-quality-fill" style={{ width: `${part.quality}%`, background: qColor, boxShadow: part.quality >= 90 ? `0 0 6px ${qColor}66` : "none" }} />
-        </div>
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: qColor }}>{part.quality}%</span>
-      </div>
       <div className="ws-inv-stats">
-        {[
-          { label: "SPD", value: part.stat_speed },
-          { label: "HND", value: part.stat_handling },
-          { label: "DUR", value: part.stat_durability },
-          { label: "ACC", value: part.stat_acceleration },
-        ].filter((s) => s.value > 0).map((s) => (
+        {activeStats.map((s) => (
           <div key={s.label} className="ws-inv-stat">
             <span className="ws-inv-stat-label">{s.label}</span>
-            <span className="ws-inv-stat-val">{s.value}</span>
+            <span className="ws-inv-stat-val" style={{ color: rarityColor }}>{s.value}</span>
           </div>
         ))}
       </div>
@@ -1054,7 +1057,7 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
             <div className="animate-fade-up">
               <div className="flex items-center justify-between mb-4">
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--color-text-muted)" }}>
-                  {data.inventory.reduce((acc, p) => acc + p.quantity, 0)} / {data.upgrades.inventory_size * 5 + 15} PARTS
+                  {data.inventory.length} / {data.upgrades.inventory_size * 5 + 15} PARTS
                 </span>
               </div>
 

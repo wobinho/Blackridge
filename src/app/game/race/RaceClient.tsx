@@ -330,10 +330,10 @@ function EntryModal({
 
   const engineerBoost = selectedEngineer?.race_bonus ?? 0;
   const finalSpeed = selectedDriver && selectedCar
-    ? Math.round(selectedCar.speed + selectedDriver.speed / 10 + engineerBoost * 0.3)
+    ? Math.round(selectedCar.stat_speed + selectedDriver.speed / 10 + engineerBoost * 0.3)
     : 0;
   const finalHandling = selectedDriver && selectedCar
-    ? Math.round(selectedCar.handling + selectedDriver.skill / 10 + engineerBoost * 0.2)
+    ? Math.round(selectedCar.stat_handling + selectedDriver.skill / 10 + engineerBoost * 0.2)
     : 0;
 
   const animClass = `race-step-${animDir}`;
@@ -512,10 +512,10 @@ function EntryModal({
                           <div className="race-select-card-name">{c.name}</div>
                           <div className="race-car-code">{c.model_code}</div>
                           <div className="race-select-stats race-car-stats">
-                            <span>SPD <b>{c.speed}</b></span>
-                            <span>HND <b>{c.handling}</b></span>
-                            <span>DUR <b>{c.durability}</b></span>
-                            <span>ACC <b>{c.acceleration}</b></span>
+                            <span>SPD <b>{c.stat_speed}</b></span>
+                            <span>HND <b>{c.stat_handling}</b></span>
+                            <span>DUR <b>{c.stat_durability}</b></span>
+                            <span>ACC <b>{c.stat_acceleration}</b></span>
                           </div>
                           <div className="race-car-wear">
                             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">

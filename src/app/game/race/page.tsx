@@ -67,17 +67,26 @@ export interface UserEngineer {
 export interface UserCar {
   id: number;
   name: string;
-  speed: number;
-  handling: number;
-  durability: number;
-  acceleration: number;
+  stat_speed: number;
+  stat_acceleration: number;
+  stat_handling: number;
+  stat_stability: number;
+  stat_durability: number;
+  stat_weight: number;
+  stat_braking: number;
+  stat_control: number;
+  stat_shift_speed: number;
+  stat_efficiency: number;
+  stat_grip: number;
+  stat_cornering: number;
+  wear: number;
   status: string;
   total_races: number;
   total_wins: number;
   color: string;
   template_name: string;
   model_code: string;
-  tier: number;
+  archetype: string;
 }
 
 export interface RacePageData {
@@ -149,13 +158,16 @@ export default async function RacePage() {
   `).all(session.id) as UserEngineer[];
 
   const userCars = db.prepare(`
-    SELECT c.id, c.name, c.speed, c.handling, c.durability, c.acceleration,
-           c.status, c.total_races, c.total_wins, c.color,
-           ct.name as template_name, ct.model_code, ct.tier
+    SELECT c.id, c.name,
+           c.stat_speed, c.stat_acceleration, c.stat_handling, c.stat_stability,
+           c.stat_durability, c.stat_weight, c.stat_braking, c.stat_control,
+           c.stat_shift_speed, c.stat_efficiency, c.stat_grip, c.stat_cornering,
+           c.wear, c.status, c.total_races, c.total_wins, c.color,
+           ct.name as template_name, ct.model_code, ct.archetype
     FROM cars c
-    JOIN car_templates ct ON ct.id = c.template_id
+    JOIN car_templates ct ON ct.id = c.car_template_id
     WHERE c.user_id = ? AND c.status NOT IN ('sold')
-    ORDER BY c.speed DESC
+    ORDER BY c.stat_speed DESC
   `).all(session.id) as UserCar[];
 
   const user = db.prepare(`SELECT credits FROM users WHERE id = ?`).get(session.id) as { credits: number };

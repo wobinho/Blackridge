@@ -21,13 +21,16 @@ export async function GET() {
       u.username as seller_name,
       u.brand_name as seller_brand,
       c.name as car_name,
-      c.speed, c.handling, c.durability, c.acceleration, c.total_races, c.total_wins,
-      ct.name as template_name, ct.tier, ct.art, ct.model_code,
+      c.stat_speed, c.stat_handling, c.stat_durability, c.stat_acceleration,
+      c.stat_stability, c.stat_weight, c.stat_braking, c.stat_control,
+      c.stat_shift_speed, c.stat_efficiency, c.stat_grip, c.stat_cornering,
+      c.wear, c.total_races, c.total_wins,
+      ct.name as template_name, ct.archetype, ct.art, ct.model_code,
       c.color
     FROM market_listings ml
     JOIN users u ON u.id = ml.seller_id
     JOIN cars c ON c.id = ml.item_id
-    JOIN car_templates ct ON ct.id = c.template_id
+    JOIN car_templates ct ON ct.id = c.car_template_id
     WHERE ml.listing_type = 'car'
       AND ml.status = 'active'
       AND ml.seller_id != ?
@@ -42,14 +45,14 @@ export async function GET() {
     seller_name: string;
     seller_brand: string;
     car_name: string;
-    speed: number;
-    handling: number;
-    durability: number;
-    acceleration: number;
+    stat_speed: number; stat_handling: number; stat_durability: number; stat_acceleration: number;
+    stat_stability: number; stat_weight: number; stat_braking: number; stat_control: number;
+    stat_shift_speed: number; stat_efficiency: number; stat_grip: number; stat_cornering: number;
+    wear: number;
     total_races: number;
     total_wins: number;
     template_name: string;
-    tier: number;
+    archetype: string;
     art: string | null;
     model_code: string;
     color: string;

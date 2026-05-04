@@ -69,15 +69,31 @@ export async function initDb(): Promise<DbWrapper> {
 
 function applyColumnMigrations(database: import("sql.js").Database): void {
   const pending: Array<{ table: string; column: string; def: string }> = [
-    { table: "driver_templates", column: "art", def: "TEXT" },
-    { table: "car_templates",    column: "art", def: "TEXT" },
-    { table: "part_templates",   column: "art", def: "TEXT" },
+    { table: "driver_templates", column: "art",              def: "TEXT" },
+    { table: "car_templates",    column: "art",              def: "TEXT" },
+    { table: "part_templates",   column: "art",              def: "TEXT" },
+    { table: "crafting_queue",   column: "engineer_id",      def: "INTEGER" },
+    { table: "crafting_queue",   column: "slot_index",       def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "users",            column: "xgear",            def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "circuits",         column: "archetype",        def: "TEXT" },
+    { table: "circuits",         column: "min_speed",        def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "circuits",         column: "min_handling",     def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "circuits",         column: "duration_seconds", def: "INTEGER NOT NULL DEFAULT 300" },
+    { table: "circuits",         column: "podium_rewards",   def: "TEXT NOT NULL DEFAULT '[]'" },
+    { table: "races",            column: "engineer_id",      def: "INTEGER" },
+    { table: "races",            column: "completes_at",     def: "INTEGER NOT NULL DEFAULT (unixepoch())" },
+    { table: "materials",        column: "art",              def: "TEXT" },
+    { table: "part_templates",   column: "rarity",           def: "TEXT NOT NULL DEFAULT 'common'" },
   ];
   for (const m of pending) {
-    const result = database.exec(`PRAGMA table_info(${m.table})`);
-    const names = (result[0]?.values ?? []).map((r) => r[1] as string);
-    if (!names.includes(m.column)) {
-      database.run(`ALTER TABLE ${m.table} ADD COLUMN ${m.column} ${m.def}`);
+    try {
+      const result = database.exec(`PRAGMA table_info(${m.table})`);
+      const names = (result[0]?.values ?? []).map((r) => r[1] as string);
+      if (!names.includes(m.column)) {
+        database.run(`ALTER TABLE ${m.table} ADD COLUMN ${m.column} ${m.def}`);
+      }
+    } catch {
+      // table may not exist yet — schema handles creation
     }
   }
 }

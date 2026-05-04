@@ -326,36 +326,34 @@ export default function GarageClient({ data }: { data: GaragePageData }) {
       <Toast toast={toast} />
 
       <div className="grg-page">
-        {/* Header */}
-        <div className="grg-header">
-          <div className="grg-header-inner">
+        {/* Page Header */}
+        <div className="grg-page-header">
+          <div className="grg-page-header-inner">
             <div>
               <h1 className="grg-page-title">GARAGE</h1>
-              <p className="grg-page-sub">
-                {data.cars.length} VEHICLE{data.cars.length !== 1 ? "S" : ""} · {fmtCr(data.credits)} CR
-              </p>
+              <p className="grg-page-sub">Manage your fleet. List cars for sale.</p>
             </div>
-            <div className="grg-fleet-stat">
-              <span className="grg-fleet-num">{data.cars.length}</span>
-              <span className="grg-fleet-label">FLEET</span>
+            <div className="grg-header-credits">
+              <span className="grg-credits-val">{fmtCr(data.credits)}</span>
+              <span className="grg-credits-label">CR</span>
             </div>
           </div>
+        </div>
 
-          {/* Tabs */}
-          <div className="grg-tabs">
-            {TABS.map((t) => (
-              <button
-                key={t}
-                className={`grg-tab${tab === t ? " active" : ""}`}
-                onClick={() => setTab(t)}
-              >
-                {t}
-                {t === "FOR SALE" && forSaleCars.length > 0 && (
-                  <span className="grg-tab-badge">{forSaleCars.length}</span>
-                )}
-              </button>
-            ))}
-          </div>
+        {/* Tab Bar */}
+        <div className="grg-tab-bar">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              className={`grg-tab-btn${tab === t ? " grg-tab-active" : ""}`}
+              onClick={() => setTab(t)}
+            >
+              {t}
+              {t === "FOR SALE" && forSaleCars.length > 0 && (
+                <span className="grg-tab-badge">{forSaleCars.length}</span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Content */}
@@ -447,113 +445,116 @@ const GARAGE_STYLES = `
   .grg-page { margin-left: 4rem; padding-bottom: 1.5rem; }
 }
 
-/* ── Header ─────────────────────────────────────────────── */
-.grg-header {
-  background: #080808;
+/* ── Page Header ────────────────────────────────────────── */
+.grg-page-header {
+  padding: 20px 16px 0;
   border-bottom: 1px solid rgba(255,255,255,0.06);
-  padding: 1.5rem 1.25rem 0;
-  position: sticky;
-  top: 0;
-  z-index: 20;
+  background: linear-gradient(180deg, rgba(232,0,28,0.04) 0%, transparent 100%);
 }
 
-@media (min-width: 768px) {
-  .grg-header { padding: 2rem 2rem 0; }
-}
-
-.grg-header-inner {
+.grg-page-header-inner {
   display: flex;
-  align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  align-items: flex-start;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 16px;
 }
 
 .grg-page-title {
   font-family: var(--font-display, 'Bebas Neue', sans-serif);
-  font-size: 2.25rem;
-  letter-spacing: 0.08em;
+  font-size: clamp(28px, 5vw, 40px);
+  letter-spacing: 0.05em;
   color: #ffffff;
   line-height: 1;
 }
 
 .grg-page-sub {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 0.7rem;
-  color: rgba(255,255,255,0.3);
-  margin-top: 0.25rem;
-  letter-spacing: 0.06em;
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  margin-top: 4px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.grg-fleet-stat {
+.grg-header-credits {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
 
-.grg-fleet-num {
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
-  font-size: 2.5rem;
-  color: #e8001c;
-  line-height: 1;
+.grg-credits-val {
+  font-family: var(--font-mono, 'JetBrains Mono'), monospace;
+  font-size: 18px;
+  color: #c9a84c;
+  letter-spacing: -0.02em;
 }
 
-.grg-fleet-label {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 0.6rem;
-  color: rgba(255,255,255,0.25);
+.grg-credits-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
   letter-spacing: 0.1em;
 }
 
-/* ── Tabs ───────────────────────────────────────────────── */
-.grg-tabs {
+/* ── Tab Bar ────────────────────────────────────────────── */
+.grg-tab-bar {
   display: flex;
+  padding: 0 16px;
   gap: 0;
-  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: #080808;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
-.grg-tab {
-  flex: 1;
+.grg-tab-btn {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.35);
+  padding: 12px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0.75rem 1rem;
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
-  font-size: 0.95rem;
-  letter-spacing: 0.1em;
-  color: rgba(255,255,255,0.3);
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  gap: 6px;
 }
 
-.grg-tab.active {
+.grg-tab-btn:hover:not(.grg-tab-active) { color: rgba(255,255,255,0.6); }
+
+.grg-tab-active {
   color: #ffffff;
   border-bottom-color: #e8001c;
 }
 
 .grg-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: #e8001c;
   color: #fff;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 0.6rem;
-  width: 1.1rem;
-  height: 1.1rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 9px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  padding: 0 4px;
+  animation: grg-pulse 2s ease-in-out infinite;
 }
 
 /* ── Content ────────────────────────────────────────────── */
 .grg-content {
-  padding: 1.25rem;
+  padding: 20px 16px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 @media (min-width: 768px) {
-  .grg-content { padding: 2rem; }
+  .grg-content { padding: 20px 16px; }
 }
 
 /* ── Grid ───────────────────────────────────────────────── */

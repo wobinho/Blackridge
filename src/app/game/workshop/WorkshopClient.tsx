@@ -956,40 +956,39 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
     <>
       <style>{WORKSHOP_STYLES}</style>
 
-      <div className="md:ml-16 pb-20 md:pb-6">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6">
+      <div className="ws-page md:ml-16 pb-20 md:pb-6">
 
-          {/* Page Header */}
-          <div className="mb-5 animate-fade-up">
-            <p className="section-tag mb-1">Manufacturing</p>
-            <div className="flex items-end justify-between gap-4">
-              <h1 className="text-white leading-none" style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 6vw, 48px)", letterSpacing: "0.04em" }}>
-                WORKSHOP
-              </h1>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--color-text-muted)" }}>
-                {data.craftSlots.filter((s) => s.status !== "idle").length}/{data.upgrades.develop_slots} ACTIVE
-              </span>
+        {/* Page Header */}
+        <div className="ws-page-header">
+          <div className="ws-page-header-inner">
+            <div>
+              <h1 className="ws-page-title">WORKSHOP</h1>
+              <p className="ws-page-sub">Craft parts. Build cars. Dominate the market.</p>
             </div>
-            <span className="accent-line mt-3" />
+            <div className="ws-header-credits">
+              <span className="ws-credits-val">{credits.toLocaleString()}</span>
+              <span className="ws-credits-label">CR</span>
+            </div>
           </div>
+        </div>
 
-          {/* Tab Bar */}
-          <div className="ws-tabs animate-fade-up animate-delay-100">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                className="ws-tab"
-                style={{
-                  color: activeTab === tab ? "white" : "var(--color-text-muted)",
-                  borderBottom: activeTab === tab ? "2px solid #e8001c" : "2px solid transparent",
-                  background: activeTab === tab ? "rgba(232,0,28,0.04)" : "transparent",
-                }}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+        {/* Tab Bar */}
+        <div className="ws-tab-bar">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              className={`ws-tab-btn ${activeTab === tab ? "ws-tab-active" : ""}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+              {tab === "DEVELOP" && data.craftSlots.filter((s) => s.status !== "idle").length > 0 && (
+                <span className="ws-tab-badge">{data.craftSlots.filter((s) => s.status !== "idle").length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="ws-tab-content">
 
           {/* ── DEVELOP TAB ─────────────────────────────── */}
           {activeTab === "DEVELOP" && (
@@ -1133,8 +1132,8 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
               </div>
             </div>
           )}
-        </div>
-      </div>
+        </div>{/* ws-tab-content */}
+      </div>{/* ws-page */}
 
       {/* Build Modal */}
       {buildModalSlot !== null && (
@@ -1158,27 +1157,114 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
 
 // ─── Component-scoped CSS ────────────────────────────────────────────────────
 const WORKSHOP_STYLES = `
-  /* ── Tab bar ─────────────────────────────────── */
-  .ws-tabs {
+  /* ── Page Layout ─────────────────────────────── */
+  .ws-page {
+    min-height: 100vh;
+    background: #080808;
+    position: relative;
+  }
+
+  /* ── Page Header ──────────────────────────────── */
+  .ws-page-header {
+    padding: 20px 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: linear-gradient(180deg, rgba(232,0,28,0.04) 0%, transparent 100%);
+  }
+  .ws-page-header-inner {
     display: flex;
-    border-bottom: 1px solid var(--color-border);
-    margin-bottom: 20px;
+    justify-content: space-between;
+    align-items: flex-start;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 16px;
+  }
+  .ws-page-title {
+    font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+    font-size: clamp(28px, 5vw, 40px);
+    letter-spacing: 0.05em;
+    color: #ffffff;
+    line-height: 1;
+  }
+  .ws-page-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 4px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .ws-header-credits {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .ws-credits-val {
+    font-family: var(--font-mono, 'JetBrains Mono'), monospace;
+    font-size: 18px;
+    color: #c9a84c;
+    letter-spacing: -0.02em;
+  }
+  .ws-credits-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.1em;
+  }
+
+  /* ── Tab Bar ──────────────────────────────────── */
+  .ws-tab-bar {
+    display: flex;
+    padding: 0 16px;
+    gap: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: #080808;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     overflow-x: auto;
     scrollbar-width: none;
   }
-  .ws-tabs::-webkit-scrollbar { display: none; }
-  .ws-tab {
-    flex-shrink: 0;
-    padding: 10px 16px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-    background: transparent;
+  .ws-tab-bar::-webkit-scrollbar { display: none; }
+  .ws-tab-btn {
+    font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.35);
+    padding: 12px 20px;
     border: none;
+    background: none;
+    cursor: pointer;
     border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
+    transition: color 0.2s, border-color 0.2s;
+    position: relative;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ws-tab-btn:hover:not(.ws-tab-active) { color: rgba(255,255,255,0.6); }
+  .ws-tab-active {
+    color: #ffffff;
+    border-bottom-color: #e8001c;
+  }
+  .ws-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e8001c;
+    color: white;
+    font-family: var(--font-mono, monospace);
+    font-size: 9px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    padding: 0 4px;
+    animation: ws-pulse 2s ease-in-out infinite;
+  }
+
+  /* ── Tab Content ──────────────────────────────── */
+  .ws-tab-content {
+    padding: 20px 16px;
+    max-width: 1200px;
+    margin: 0 auto;
   }
 
   /* ── Materials Strip ─────────────────────────── */
@@ -1386,6 +1472,10 @@ const WORKSHOP_STYLES = `
   @keyframes pulseDot {
     0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
     50% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.7); }
+  }
+  @keyframes ws-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
   }
 
   /* Completed slot */

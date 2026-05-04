@@ -482,29 +482,27 @@ export default function DriversClient({ data }: { data: { drivers: DriverFull[];
       {/* Inject component-scoped styles */}
       <style>{DRIVER_STYLES}</style>
 
-      <div className="md:ml-16 pb-20 md:pb-6">
-        <div className="max-w-6xl mx-auto px-4 md:px-6 pt-6">
+      <div className="drv-page md:ml-16 pb-20 md:pb-6">
 
-          {/* Page header */}
-          <div className="mb-6 animate-fade-up">
-            <p className="section-tag mb-1">Driver Roster</p>
-            <div className="flex items-end justify-between gap-4 flex-wrap">
-              <h1
-                className="text-white leading-none"
-                style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 6vw, 48px)", letterSpacing: "0.04em" }}
-              >
-                DRIVERS
-              </h1>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--color-text-muted)" }}>
-                {drivers.length} / {driverCap} RECRUITED
-              </span>
+        {/* Page Header */}
+        <div className="drv-page-header">
+          <div className="drv-page-header-inner">
+            <div>
+              <h1 className="drv-page-title">DRIVERS</h1>
+              <p className="drv-page-sub">Your racing roster. Manage talent and performance.</p>
             </div>
-            <span className="accent-line mt-3" />
+            <div className="drv-header-stat">
+              <span className="drv-stat-val">{drivers.length}</span>
+              <span className="drv-stat-label">/ {driverCap} SLOTS</span>
+            </div>
           </div>
+        </div>
 
+        {/* Content */}
+        <div className="drv-content">
           {/* Rarity legend */}
           {drivers.length > 0 && (
-            <div className="flex items-center gap-3 flex-wrap mb-6 animate-fade-up animate-delay-100">
+            <div className="flex items-center gap-3 flex-wrap mb-5">
               {(["legendary", "epic", "rare", "common"] as const).map((r) => {
                 const count = drivers.filter((d) => d.rarity === r).length;
                 if (count === 0) return null;
@@ -527,7 +525,7 @@ export default function DriversClient({ data }: { data: { drivers: DriverFull[];
           {drivers.length === 0 ? (
             <EmptyState />
           ) : (
-            <div className="driver-grid animate-fade-up animate-delay-200">
+            <div className="driver-grid">
               {sorted.map((driver, i) => (
                 <DriverCard
                   key={driver.id}
@@ -550,6 +548,65 @@ export default function DriversClient({ data }: { data: { drivers: DriverFull[];
 
 // ─── Component-scoped CSS ───────────────────────────────────────────────────
 const DRIVER_STYLES = `
+  /* ── Page Layout ─────────────────────────────── */
+  .drv-page {
+    min-height: 100vh;
+    background: #080808;
+    position: relative;
+  }
+
+  /* ── Page Header ──────────────────────────────── */
+  .drv-page-header {
+    padding: 20px 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: linear-gradient(180deg, rgba(232,0,28,0.04) 0%, transparent 100%);
+  }
+  .drv-page-header-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 16px;
+  }
+  .drv-page-title {
+    font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+    font-size: clamp(28px, 5vw, 40px);
+    letter-spacing: 0.05em;
+    color: #ffffff;
+    line-height: 1;
+  }
+  .drv-page-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 4px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .drv-header-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .drv-stat-val {
+    font-family: var(--font-mono, 'JetBrains Mono'), monospace;
+    font-size: 18px;
+    color: #e8001c;
+    letter-spacing: -0.02em;
+  }
+  .drv-stat-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.1em;
+  }
+
+  /* ── Content ──────────────────────────────────── */
+  .drv-content {
+    padding: 20px 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
   /* Driver grid */
   .driver-grid {
     display: grid;

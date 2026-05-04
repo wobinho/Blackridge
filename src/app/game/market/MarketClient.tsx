@@ -1180,86 +1180,83 @@ export default function MarketClient({ data }: { data: MarketPageData }) {
   return (
     <>
       <style>{MARKET_STYLES}</style>
-      <div className="md:ml-16 pb-20 md:pb-6">
-        <div className="max-w-6xl mx-auto px-4 md:px-6 pt-6">
+      <div className="mkt-page md:ml-16 pb-20 md:pb-6">
 
-          {/* Page header */}
-          <div className="mb-5 animate-fade-up">
-            <p className="section-tag mb-1">Blackridge Exchange</p>
-            <div className="flex items-end justify-between gap-4 flex-wrap">
-              <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 6vw, 48px)", letterSpacing: "0.04em", color: "white", lineHeight: 1 }}>
-                MARKET
-              </h1>
-              <div className="flex items-center gap-4">
-                <div className="mkt-balance-chip">
-                  <span className="mkt-balance-val">{fmtCr(data.credits)}</span>
-                  <span className="mkt-balance-label">CR</span>
-                </div>
-                <div className="mkt-balance-chip" style={{ borderColor: "rgba(201,168,76,0.2)", background: "rgba(201,168,76,0.04)" }}>
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="#c9a84c" strokeWidth="1.5">
-                    <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" fill="#c9a84c33" />
-                  </svg>
-                  <span className="mkt-balance-val" style={{ color: "#c9a84c" }}>{data.xgear.toLocaleString()}</span>
-                  <span className="mkt-balance-label" style={{ color: "#c9a84c88" }}>XG</span>
-                </div>
+        {/* Page Header */}
+        <div className="mkt-page-header">
+          <div className="mkt-page-header-inner">
+            <div>
+              <h1 className="mkt-page-title">MARKET</h1>
+              <p className="mkt-page-sub">Trade materials. Buy parts. Recruit talent.</p>
+            </div>
+            <div className="mkt-header-right">
+              <div className="mkt-header-balance">
+                <span className="mkt-credits-val">{fmtCr(data.credits)}</span>
+                <span className="mkt-credits-label">CR</span>
+              </div>
+              <div className="mkt-header-balance mkt-header-xgear">
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="#c9a84c" strokeWidth="1.5">
+                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" fill="#c9a84c33" />
+                </svg>
+                <span className="mkt-credits-val" style={{ color: "#c9a84c" }}>{data.xgear.toLocaleString()}</span>
+                <span className="mkt-credits-label" style={{ color: "rgba(201,168,76,0.5)" }}>XG</span>
               </div>
             </div>
-            <span className="accent-line mt-3" />
           </div>
+        </div>
 
-          {/* Tab bar */}
-          <div className="mkt-tab-bar animate-fade-up animate-delay-100">
-            {TABS.map((t) => (
-              <button
-                key={t}
-                className={`mkt-tab-btn ${tab === t ? "mkt-tab-active" : ""}`}
-                onClick={() => setTab(t)}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+        {/* Tab Bar */}
+        <div className="mkt-tab-bar">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              className={`mkt-tab-btn ${tab === t ? "mkt-tab-active" : ""}`}
+              onClick={() => setTab(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
 
-          {/* Toast */}
-          <Toast toast={toast} />
+        {/* Toast */}
+        <Toast toast={toast} />
 
-          {/* Tab content */}
-          <div className="animate-fade-up animate-delay-200">
-            {tab === "MATERIALS" && (
-              <MaterialsTab
-                slots={data.materialSlots}
-                credits={data.credits}
-                matNextRefresh={data.matNextRefresh}
-                onBuy={handleMatBuy}
-                onRefresh={() => router.refresh()}
-              />
-            )}
-            {tab === "PARTS" && (
-              <PartsTab
-                listings={data.partListings}
-                credits={data.credits}
-                partNextRefresh={data.partNextRefresh}
-                onBuy={handlePartBuy}
-                onRefresh={() => router.refresh()}
-              />
-            )}
-            {tab === "CARS" && (
-              <CarsTab
-                listings={data.carListings}
-                credits={data.credits}
-                onBuy={handleCarBuy}
-              />
-            )}
-            {tab === "RECRUIT" && (
-              <RecruitTab
-                driverTemplates={data.driverTemplates}
-                engineerTemplates={data.engineerTemplates}
-                xgear={data.xgear}
-                pity={data.pity}
-                onRoll={handleGachaRoll}
-              />
-            )}
-          </div>
+        {/* Tab content */}
+        <div className="mkt-main-content">
+          {tab === "MATERIALS" && (
+            <MaterialsTab
+              slots={data.materialSlots}
+              credits={data.credits}
+              matNextRefresh={data.matNextRefresh}
+              onBuy={handleMatBuy}
+              onRefresh={() => router.refresh()}
+            />
+          )}
+          {tab === "PARTS" && (
+            <PartsTab
+              listings={data.partListings}
+              credits={data.credits}
+              partNextRefresh={data.partNextRefresh}
+              onBuy={handlePartBuy}
+              onRefresh={() => router.refresh()}
+            />
+          )}
+          {tab === "CARS" && (
+            <CarsTab
+              listings={data.carListings}
+              credits={data.credits}
+              onBuy={handleCarBuy}
+            />
+          )}
+          {tab === "RECRUIT" && (
+            <RecruitTab
+              driverTemplates={data.driverTemplates}
+              engineerTemplates={data.engineerTemplates}
+              xgear={data.xgear}
+              pity={data.pity}
+              onRoll={handleGachaRoll}
+            />
+          )}
         </div>
       </div>
     </>
@@ -1268,34 +1265,104 @@ export default function MarketClient({ data }: { data: MarketPageData }) {
 
 // ─── Component-scoped CSS ─────────────────────────────────────────────────────
 const MARKET_STYLES = `
-  /* ── Tab bar ── */
+  /* ── Page Layout ── */
+  .mkt-page {
+    min-height: 100vh;
+    background: #080808;
+    position: relative;
+  }
+
+  /* ── Page Header ── */
+  .mkt-page-header {
+    padding: 20px 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: linear-gradient(180deg, rgba(232,0,28,0.04) 0%, transparent 100%);
+  }
+  .mkt-page-header-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 16px;
+  }
+  .mkt-page-title {
+    font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+    font-size: clamp(28px, 5vw, 40px);
+    letter-spacing: 0.05em;
+    color: #ffffff;
+    line-height: 1;
+  }
+  .mkt-page-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 4px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .mkt-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .mkt-header-balance {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .mkt-credits-val {
+    font-family: var(--font-mono, 'JetBrains Mono'), monospace;
+    font-size: 18px;
+    color: #c9a84c;
+    letter-spacing: -0.02em;
+  }
+  .mkt-credits-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.1em;
+  }
+  .mkt-header-xgear .mkt-credits-val { font-size: 14px; }
+
+  /* ── Tab Bar ── */
   .mkt-tab-bar {
     display: flex;
-    gap: 2px;
-    border-bottom: 1px solid var(--color-border);
-    margin-bottom: 20px;
+    padding: 0 16px;
+    gap: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: #080808;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     overflow-x: auto;
     scrollbar-width: none;
   }
   .mkt-tab-bar::-webkit-scrollbar { display: none; }
   .mkt-tab-btn {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    color: var(--color-text-muted);
-    padding: 10px 14px;
-    border-bottom: 2px solid transparent;
-    background: transparent;
+    font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.35);
+    padding: 12px 20px;
+    border: none;
+    background: none;
     cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
     white-space: nowrap;
-    transition: color 0.15s, border-color 0.15s;
     flex-shrink: 0;
   }
-  .mkt-tab-btn:hover { color: white; }
+  .mkt-tab-btn:hover:not(.mkt-tab-active) { color: rgba(255,255,255,0.6); }
   .mkt-tab-active { color: white !important; border-bottom-color: #e8001c !important; }
 
+  /* ── Main Content ── */
+  .mkt-main-content {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
   /* ── Tab content ── */
-  .mkt-tab-content { padding-top: 4px; }
+  .mkt-tab-content { padding: 20px 16px; }
 
   /* ── Section header ── */
   .mkt-section-header {

@@ -96,14 +96,33 @@ export interface MarketPageData {
   pity: { driver: number; engineer: number };
 }
 
-// Slot pool configs mirrored from API for server-side refresh
+// 12-slot pool configs (slots 0-3 base, 4-11 unlockable via upgrades)
+// Format: [material_id, weight, qty_min, qty_max, price_multiplier]
 const SLOT_POOLS: Array<Array<[number, number, number, number, number]>> = [
+  // Slot 0 — common bulk
   [[2, 60, 15, 25, 0.9], [4, 40, 12, 20, 0.9]],
+  // Slot 1 — common variety
   [[4, 50, 12, 18, 1.0], [5, 50, 10, 18, 1.0]],
+  // Slot 2 — common/uncommon
   [[5, 45, 10, 16, 1.0], [1, 35, 6, 10, 1.1], [2, 20, 14, 22, 0.9]],
+  // Slot 3 — uncommon
   [[1, 50, 5, 10, 1.2], [6, 50, 3, 7, 1.2]],
+  // Slot 4 — uncommon/rare (bonus tier 1)
   [[6, 40, 3, 6, 1.3], [3, 30, 2, 4, 1.5], [7, 30, 1, 3, 1.8]],
+  // Slot 5 — rare/epic (bonus tier 1)
   [[3, 45, 2, 4, 1.6], [7, 35, 1, 3, 2.0], [8, 20, 1, 2, 2.5]],
+  // Slot 6 — uncommon bulk (bonus tier 2)
+  [[1, 55, 6, 12, 1.1], [6, 45, 4, 8, 1.2]],
+  // Slot 7 — rare (bonus tier 2)
+  [[3, 55, 2, 5, 1.5], [7, 45, 1, 3, 1.9]],
+  // Slot 8 — common/uncommon mix (bonus tier 3)
+  [[2, 40, 10, 18, 0.95], [5, 35, 8, 14, 1.0], [1, 25, 4, 8, 1.15]],
+  // Slot 9 — rare/epic (bonus tier 3)
+  [[7, 45, 2, 4, 1.8], [8, 35, 1, 3, 2.2], [3, 20, 2, 4, 1.6]],
+  // Slot 10 — uncommon/rare (bonus tier 4)
+  [[6, 50, 4, 8, 1.25], [3, 30, 2, 4, 1.6], [7, 20, 1, 2, 2.0]],
+  // Slot 11 — epic tier (bonus tier 4)
+  [[8, 50, 1, 3, 2.4], [7, 30, 2, 4, 2.0], [3, 20, 2, 3, 1.7]],
 ];
 const MAT_REFRESH = 180;
 const PART_REFRESH = 3600;
@@ -115,6 +134,18 @@ function weightedPick<T extends [number, number, ...unknown[]]>(pool: T[]): T {
   for (const entry of pool) { r -= entry[1]; if (r <= 0) return entry; }
   return pool[pool.length - 1];
 }
+// Shift weight from first (lowest rarity) entry toward later entries by rarityBoost level
+function applyRarityBoost(
+  pool: Array<[number, number, number, number, number]>,
+  boost: number
+): Array<[number, number, number, number, number]> {
+  if (boost === 0 || pool.length <= 1) return pool;
+  const shift = boost * 10;
+  return pool.map((entry, idx) => {
+    const delta = idx === 0 ? -Math.min(shift * (pool.length - 1), entry[1] * 0.8) : shift;
+    return [entry[0], Math.max(1, entry[1] + delta), entry[2], entry[3], entry[4]] as [number, number, number, number, number];
+  });
+}
 
 export default async function MarketPage() {
   const session = await getSession();
@@ -125,14 +156,22 @@ export default async function MarketPage() {
 
   const now = Math.floor(Date.now() / 1000);
 
-  // --- Material slot refresh (server-side, same logic as API) ---
+  // --- Fetch user upgrade levels for market ---
+  const marketUpgrades = db.prepare(
+    `SELECT market_mat_slots, market_mat_rarity FROM workshop_upgrades WHERE user_id = ?`
+  ).get(session.id) as { market_mat_slots: number; market_mat_rarity: number } | undefined;
+  const matSlotCount = 4 + (marketUpgrades?.market_mat_slots ?? 0) * 2;
+  const matRarityBoost = marketUpgrades?.market_mat_rarity ?? 0;
+
+  // --- Material slot refresh (server-side) ---
   const matValues = db.prepare(`SELECT id, base_value FROM materials`).all() as { id: number; base_value: number }[];
   const matValMap = new Map(matValues.map((m) => [m.id, m.base_value]));
 
-  for (let i = 0; i < SLOT_POOLS.length; i++) {
+  for (let i = 0; i < matSlotCount; i++) {
     const slot = db.prepare(`SELECT slot_index, refresh_at FROM market_material_slots WHERE slot_index = ?`).get(i) as { slot_index: number; refresh_at: number } | undefined;
     if (slot && now < slot.refresh_at) continue;
-    const pool = SLOT_POOLS[i];
+    const rawPool = SLOT_POOLS[i] ?? SLOT_POOLS[SLOT_POOLS.length - 1];
+    const pool = applyRarityBoost(rawPool, matRarityBoost);
     const [matId, , qMin, qMax, priceMult] = weightedPick(pool);
     const qty = qMin + Math.floor(Math.random() * (qMax - qMin + 1));
     const price = Math.round((matValMap.get(matId) ?? 20) * priceMult);
@@ -163,8 +202,9 @@ export default async function MarketPage() {
            m.name, m.art, m.rarity, m.base_value, m.description
     FROM market_material_slots mms
     JOIN materials m ON m.id = mms.material_id
+    WHERE mms.slot_index < ?
     ORDER BY mms.slot_index
-  `).all() as MarketMaterialSlot[];
+  `).all(matSlotCount) as MarketMaterialSlot[];
 
   const partListings = db.prepare(`
     SELECT mpl.id, mpl.part_id, mpl.price, mpl.quantity, mpl.expires_at,

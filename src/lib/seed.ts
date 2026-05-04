@@ -153,6 +153,14 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
     db.prepare("INSERT INTO meta (key, value) VALUES ('workshop_upgrades_backfill_v1', '1')").run();
   }
 
+  // Backfill: add market_mat_slots and market_mat_rarity columns if missing
+  const marketUpgradesBackfill = db.prepare("SELECT value FROM meta WHERE key = 'market_mat_upgrades_backfill_v1'").get();
+  if (!marketUpgradesBackfill) {
+    try { db.prepare(`ALTER TABLE workshop_upgrades ADD COLUMN market_mat_slots INTEGER NOT NULL DEFAULT 0`).run(); } catch {}
+    try { db.prepare(`ALTER TABLE workshop_upgrades ADD COLUMN market_mat_rarity INTEGER NOT NULL DEFAULT 0`).run(); } catch {}
+    db.prepare("INSERT INTO meta (key, value) VALUES ('market_mat_upgrades_backfill_v1', '1')").run();
+  }
+
   // Backfill: give any user without an engineer a starter engineer
   const starterEngineerBackfill = db.prepare("SELECT value FROM meta WHERE key = 'starter_engineer_backfill_v1'").get();
   if (!starterEngineerBackfill) {

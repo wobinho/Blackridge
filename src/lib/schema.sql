@@ -263,12 +263,14 @@ CREATE TABLE IF NOT EXISTS engineers (
 CREATE TABLE IF NOT EXISTS workshop_upgrades (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-  develop_slots   INTEGER NOT NULL DEFAULT 2,   -- max crafting queue slots
-  develop_speed   INTEGER NOT NULL DEFAULT 1,   -- multiplier level (1 = base)
-  inventory_size  INTEGER NOT NULL DEFAULT 20,  -- max inventory part count
-  engineer_cap    INTEGER NOT NULL DEFAULT 3,   -- max engineers owned
-  driver_cap      INTEGER NOT NULL DEFAULT 5,   -- max drivers owned
-  garage_cap      INTEGER NOT NULL DEFAULT 10   -- max cars owned
+  develop_slots     INTEGER NOT NULL DEFAULT 2,   -- max crafting queue slots
+  develop_speed     INTEGER NOT NULL DEFAULT 1,   -- multiplier level (1 = base)
+  inventory_size    INTEGER NOT NULL DEFAULT 20,  -- max inventory part count
+  engineer_cap      INTEGER NOT NULL DEFAULT 3,   -- max engineers owned
+  driver_cap        INTEGER NOT NULL DEFAULT 5,   -- max drivers owned
+  garage_cap        INTEGER NOT NULL DEFAULT 10,  -- max cars owned
+  market_mat_slots  INTEGER NOT NULL DEFAULT 0,   -- bonus material market slots (+2 each level, max 4 upgrades = 8 bonus → 12 total)
+  market_mat_rarity INTEGER NOT NULL DEFAULT 0    -- rarity boost level for material market (max 5)
 );
 
 -- ============================================================

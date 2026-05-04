@@ -7,6 +7,11 @@ import { resolveArt } from "@/lib/resolveArt";
 import { redirect } from "next/navigation";
 import DriversClient from "./DriversClient";
 
+export interface DriversPageData {
+  drivers: DriverFull[];
+  driverCap: number;
+}
+
 export interface DriverFull {
   id: number;
   template_id: number;
@@ -64,5 +69,11 @@ export default async function DriversPage() {
     resolvedPortrait: resolveArt(d.art, "drivers"),
   }));
 
-  return <DriversClient drivers={drivers} />;
+  const upgradesRow = db.prepare(
+    `SELECT driver_cap FROM workshop_upgrades WHERE user_id = ?`
+  ).get(session.id) as { driver_cap: number } | undefined;
+
+  const driverCap = upgradesRow?.driver_cap ?? 5;
+
+  return <DriversClient data={{ drivers, driverCap }} />;
 }

@@ -470,7 +470,8 @@ function EmptyState() {
   );
 }
 
-export default function DriversClient({ drivers }: { drivers: DriverFull[] }) {
+export default function DriversClient({ data }: { data: { drivers: DriverFull[]; driverCap: number } }) {
+  const { drivers, driverCap } = data;
   const [selected, setSelected] = useState<DriverFull | null>(null);
 
   const rarityOrder = { legendary: 0, epic: 1, rare: 2, common: 3 };
@@ -495,7 +496,7 @@ export default function DriversClient({ drivers }: { drivers: DriverFull[] }) {
                 DRIVERS
               </h1>
               <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--color-text-muted)" }}>
-                {drivers.length} / ∞ RECRUITED
+                {drivers.length} / {driverCap} RECRUITED
               </span>
             </div>
             <span className="accent-line mt-3" />

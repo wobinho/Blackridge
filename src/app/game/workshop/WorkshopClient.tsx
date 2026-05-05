@@ -11,6 +11,7 @@ import type {
   EngineerFull,
   InventoryPart,
   WorkshopUpgrades,
+  CarBlueprint,
 } from "./page";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -147,28 +148,48 @@ function MaterialsStrip({ materials }: { materials: MaterialStock[] }) {
   );
 }
 
-// ─── Craft Slot Card ─────────────────────────────────────────────────────────
+// ─── Unified Slot Card ────────────────────────────────────────────────────────
+
+const ARCHETYPE_BUILD_COLORS: Record<string, string> = {
+  sports_car: "#e8001c",
+  luxury_car: "#c9a84c",
+  classic_car: "#60a5fa",
+};
 
 function CraftSlotCard({
   slot,
   index,
+  xgear,
   onStartBuild,
   onClaim,
   onCancel,
+  onClaimCar,
+  onCancelCar,
+  onSpeedUp,
 }: {
   slot: CraftSlot;
   index: number;
+  xgear: number;
   onStartBuild: (slotIndex: number) => void;
   onClaim: (queueId: number) => void;
   onCancel: (queueId: number) => void;
+  onClaimCar: (buildId: number) => void;
+  onCancelCar: (buildId: number) => void;
+  onSpeedUp: (type: "part" | "car", id: number, cost: number) => void;
 }) {
+  const calcXgearCost = (completesAt: number | null) => {
+    if (!completesAt) return 0;
+    const secsLeft = Math.max(0, completesAt - Math.floor(Date.now() / 1000));
+    return Math.ceil(secsLeft / 60);
+  };
   const [isReady, setIsReady] = useState(slot.status === "completed");
 
   useEffect(() => {
     setIsReady(slot.status === "completed");
   }, [slot.status]);
 
-  if (slot.status === "idle") {
+  // ── IDLE ──────────────────────────────────────────────────────────────────
+  if (slot.type === "idle") {
     return (
       <button
         className="ws-slot ws-slot-idle"
@@ -182,15 +203,119 @@ function CraftSlotCard({
             </svg>
           </div>
           <span className="ws-slot-idle-label">START BUILD</span>
+          <span className="ws-slot-idle-sub">Part or Car</span>
           <span className="ws-slot-num">SLOT {slot.slot_index + 1}</span>
         </div>
-        {/* Animated border */}
         <div className="ws-slot-idle-border" />
       </button>
     );
   }
 
-  if (slot.status === "completed" || isReady) {
+  // ── CAR BUILD ─────────────────────────────────────────────────────────────
+  if (slot.type === "car") {
+    const accentColor = ARCHETYPE_BUILD_COLORS[slot.archetype ?? ""] ?? "#c9a84c";
+    const engineers = [slot.car_engineer_name_1, slot.car_engineer_name_2].filter(Boolean).join(" & ");
+
+    if (isReady || slot.status === "completed") {
+      return (
+        <div
+          className="ws-slot ws-slot-complete"
+          style={{ animationDelay: `${index * 60}ms`, borderColor: accentColor + "44" }}
+        >
+          <div className="ws-slot-complete-glow" style={{ background: `radial-gradient(ellipse at 50% 0%, ${accentColor}22, transparent 60%)` }} />
+          <div className="ws-slot-header">
+            <span className="ws-slot-num" style={{ color: accentColor }}>SLOT {slot.slot_index + 1} · CAR</span>
+            <span className="ws-slot-done-badge" style={{ color: accentColor, borderColor: accentColor + "44", background: accentColor + "18" }}>READY</span>
+          </div>
+          <div className="ws-slot-body">
+            <div className="flex items-center gap-2 mb-1">
+              <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, flexShrink: 0 }} fill="none" stroke={accentColor} strokeWidth="1.5" strokeLinecap="round">
+                <path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v9a2 2 0 01-2 2h-2" />
+                <circle cx="9" cy="17" r="2" /><circle cx="17" cy="17" r="2" />
+              </svg>
+              <span className="ws-slot-part-name" style={{ color: "white" }}>{slot.car_name}</span>
+            </div>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--color-text-muted)" }}>{slot.model_code}</p>
+            {engineers && <p className="ws-slot-engineer">by {engineers}</p>}
+          </div>
+          <button
+            className="ws-claim-btn"
+            style={{ background: accentColor, borderColor: accentColor }}
+            onClick={() => slot.build_id && onClaimCar(slot.build_id)}
+          >
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            CLAIM CAR
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className="ws-slot ws-slot-crafting"
+        style={{ animationDelay: `${index * 60}ms`, borderColor: accentColor + "33" }}
+      >
+        <div className="ws-slot-header">
+          <span className="ws-slot-num" style={{ color: accentColor }}>SLOT {slot.slot_index + 1} · CAR</span>
+          <span className="ws-crafting-badge" style={{ color: accentColor, borderColor: accentColor + "44", background: accentColor + "14" }}>BUILDING</span>
+        </div>
+        <div className="ws-slot-body">
+          <div className="flex items-center gap-2 mb-1">
+            <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, flexShrink: 0 }} fill="none" stroke={accentColor} strokeWidth="1.5" strokeLinecap="round">
+              <path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v9a2 2 0 01-2 2h-2" />
+              <circle cx="9" cy="17" r="2" /><circle cx="17" cy="17" r="2" />
+            </svg>
+            <span className="ws-slot-part-name" style={{ color: "white" }}>{slot.car_name}</span>
+          </div>
+          <p style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--color-text-muted)" }}>{slot.model_code}</p>
+          {engineers && <p className="ws-slot-engineer">by {engineers}</p>}
+        </div>
+        {slot.car_started_at && slot.car_completes_at && (
+          <CraftProgress startedAt={slot.car_started_at} completesAt={slot.car_completes_at} />
+        )}
+        <div className="ws-slot-footer">
+          <div className="ws-timer">
+            <svg viewBox="0 0 24 24" className="w-3 h-3 mr-1" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 3" strokeLinecap="round" />
+            </svg>
+            {slot.car_completes_at && (
+              <Countdown completesAt={slot.car_completes_at} onComplete={() => setIsReady(true)} />
+            )}
+          </div>
+          <div className="ws-slot-actions">
+            {(() => {
+              const cost = calcXgearCost(slot.car_completes_at);
+              const canAfford = xgear >= cost;
+              return (
+                <button
+                  className="ws-speedup-btn"
+                  disabled={!canAfford}
+                  onClick={() => slot.build_id && onSpeedUp("car", slot.build_id, cost)}
+                >
+                  <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {cost} XG
+                </button>
+              );
+            })()}
+            <button
+              className="ws-cancel-btn"
+              onClick={() => slot.build_id && onCancelCar(slot.build_id)}
+            >
+              CANCEL
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── PART BUILD ────────────────────────────────────────────────────────────
+  if (isReady || slot.status === "completed") {
     return (
       <div className="ws-slot ws-slot-complete" style={{ animationDelay: `${index * 60}ms` }}>
         <div className="ws-slot-complete-glow" />
@@ -220,7 +345,7 @@ function CraftSlotCard({
     );
   }
 
-  // crafting
+  // part crafting in progress
   return (
     <div className="ws-slot ws-slot-crafting" style={{ animationDelay: `${index * 60}ms` }}>
       <div className="ws-slot-header">
@@ -237,7 +362,6 @@ function CraftSlotCard({
         )}
       </div>
 
-      {/* Progress bar */}
       {slot.started_at && slot.completes_at && (
         <CraftProgress startedAt={slot.started_at} completesAt={slot.completes_at} />
       )}
@@ -252,12 +376,30 @@ function CraftSlotCard({
             <Countdown completesAt={slot.completes_at} onComplete={() => setIsReady(true)} />
           )}
         </div>
-        <button
-          className="ws-cancel-btn"
-          onClick={() => slot.queue_id && onCancel(slot.queue_id)}
-        >
-          CANCEL
-        </button>
+        <div className="ws-slot-actions">
+          {(() => {
+            const cost = calcXgearCost(slot.completes_at);
+            const canAfford = xgear >= cost;
+            return (
+              <button
+                className="ws-speedup-btn"
+                disabled={!canAfford}
+                onClick={() => slot.queue_id && onSpeedUp("part", slot.queue_id, cost)}
+              >
+                <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {cost} XG
+              </button>
+            );
+          })()}
+          <button
+            className="ws-cancel-btn"
+            onClick={() => slot.queue_id && onCancel(slot.queue_id)}
+          >
+            CANCEL
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -285,6 +427,7 @@ function CraftProgress({ startedAt, completesAt }: { startedAt: number; complete
     </div>
   );
 }
+
 
 // ─── Build Modal ─────────────────────────────────────────────────────────────
 
@@ -791,44 +934,78 @@ function EngineerModal({ engineer, onClose }: { engineer: EngineerFull; onClose:
 
 // ─── Inventory Part Card ─────────────────────────────────────────────────────
 
-const RARITY_COLORS: Record<string, string> = {
-  common: "#888", rare: "#3b82f6", epic: "#a855f7", legendary: "#c9a84c", mythical: "#e8001c",
+const CATEGORY_STAT_PAIRS: Record<string, [{ label: string; key: keyof InventoryPart }, { label: string; key: keyof InventoryPart }]> = {
+  engine:     [{ label: "SPEED", key: "stat_speed" },       { label: "ACCEL", key: "stat_acceleration" }],
+  suspension: [{ label: "HANDL", key: "stat_handling" },    { label: "STAB",  key: "stat_stability" }],
+  chassis:    [{ label: "DUR",   key: "stat_durability" },  { label: "WGHT",  key: "stat_weight" }],
+  brakes:     [{ label: "BRK",   key: "stat_braking" },     { label: "CTRL",  key: "stat_control" }],
+  gearbox:    [{ label: "SHIFT", key: "stat_shift_speed" }, { label: "EFF",   key: "stat_efficiency" }],
+  tires:      [{ label: "GRIP",  key: "stat_grip" },        { label: "CORN",  key: "stat_cornering" }],
 };
 
 function InventoryCard({ part, index }: { part: InventoryPart; index: number }) {
-  const rarityColor = RARITY_COLORS[part.rarity] ?? "#888";
-  const activeStats = [
-    { label: "SPD", value: part.stat_speed },
-    { label: "ACC", value: part.stat_acceleration },
-    { label: "HDL", value: part.stat_handling },
-    { label: "STB", value: part.stat_stability },
-    { label: "DUR", value: part.stat_durability },
-    { label: "WGT", value: part.stat_weight },
-    { label: "BRK", value: part.stat_braking },
-    { label: "CTL", value: part.stat_control },
-    { label: "SFT", value: part.stat_shift_speed },
-    { label: "EFF", value: part.stat_efficiency },
-    { label: "GRP", value: part.stat_grip },
-    { label: "CRN", value: part.stat_cornering },
-  ].filter((s) => s.value > 0);
+  const cfg = RARITY_CONFIG[part.rarity] ?? RARITY_CONFIG.common;
+  const artSrc = part.art ? `/assets/parts/${part.art}.png` : `/assets/parts/placeholder-1x1.png`;
+  const catStats = CATEGORY_STAT_PAIRS[part.category] ?? CATEGORY_STAT_PAIRS.engine;
 
   return (
-    <div className="ws-inv-card" style={{ animationDelay: `${index * 30}ms` }}>
-      <div className="ws-inv-card-header">
-        <div className="ws-inv-cat-badge">
-          <CategoryIcon category={part.category} size={10} color="#666" />
-          <span>{categoryLabel(part.category)}</span>
-        </div>
-        <span className="ws-inv-tier" style={{ color: rarityColor, textTransform: "uppercase", fontSize: "9px" }}>{part.rarity}</span>
-      </div>
-      <p className="ws-inv-name">{part.name}</p>
-      <div className="ws-inv-stats">
-        {activeStats.map((s) => (
-          <div key={s.label} className="ws-inv-stat">
-            <span className="ws-inv-stat-label">{s.label}</span>
-            <span className="ws-inv-stat-val" style={{ color: rarityColor }}>{s.value}</span>
+    <div
+      className="ws-inv-card-v2"
+      style={{
+        animationDelay: `${index * 30}ms`,
+        borderColor: cfg.border,
+        "--inv-accent": cfg.accent,
+      } as React.CSSProperties}
+    >
+      {/* Full-bleed background image */}
+      <Image
+        src={artSrc}
+        alt={part.name}
+        fill
+        className="ws-inv-bg-img"
+        onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assets/parts/placeholder-1x1.png"; }}
+        unoptimized
+      />
+
+      {/* Gradient scrim */}
+      <div
+        className="ws-inv-scrim"
+        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.3) 38%, rgba(8,8,8,0.93) 68%, #080808 100%)" }}
+      />
+
+      {/* Rarity glow */}
+      <div className="ws-inv-rarity-glow" style={{ background: `radial-gradient(ellipse at 50% 100%, ${cfg.accent}1e, transparent 65%)` }} />
+
+      {/* Accent top line */}
+      <div className="ws-inv-accent-line" style={{ background: `linear-gradient(90deg, ${cfg.accent}cc, ${cfg.accent}33, transparent)` }} />
+
+      {/* Content */}
+      <div className="ws-inv-overlay">
+        {/* Top: category + rarity badge */}
+        <div className="ws-inv-top-row">
+          <div className="ws-inv-cat-pill" style={{ color: cfg.accent }}>
+            <CategoryIcon category={part.category} size={9} color={cfg.accent} />
+            <span>{part.category.toUpperCase()}</span>
           </div>
-        ))}
+          <span className="ws-inv-rarity-badge" style={{ color: cfg.accent, borderColor: cfg.accent + "55", background: "rgba(0,0,0,0.65)" }}>
+            {cfg.label}
+          </span>
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Bottom: name + stats */}
+        <div className="ws-inv-bottom">
+          <p className="ws-inv-name-v2">{part.name}</p>
+          <div className="ws-inv-stats-row">
+            {catStats.map((s) => (
+              <div key={s.label} className="ws-inv-stat-block">
+                <span className="ws-inv-stat-val-v2" style={{ color: cfg.accent }}>{part[s.key] as number}</span>
+                <span className="ws-inv-stat-key">{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -903,18 +1080,594 @@ function UpgradeCard({ field, currentLevel, credits, onUpgrade, loading }: {
   );
 }
 
+// ─── Slot Choice Modal ────────────────────────────────────────────────────────
+
+function SlotChoiceModal({
+  slotIndex,
+  hasBluprints,
+  onBuildPart,
+  onBuildCar,
+  onClose,
+}: {
+  slotIndex: number;
+  hasBluprints: boolean;
+  onBuildPart: () => void;
+  onBuildCar: () => void;
+  onClose: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { setTimeout(() => setVisible(true), 10); }, []);
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") handleClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  });
+
+  function handleClose() {
+    setVisible(false);
+    setTimeout(onClose, 260);
+  }
+
+  return (
+    <div
+      className="ws-modal-backdrop"
+      style={{ opacity: visible ? 1 : 0, transition: "opacity 0.25s ease" }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+    >
+      <div
+        className="ws-modal-sheet ws-choice-sheet"
+        style={{
+          transform: visible ? "translateY(0)" : "translateY(40px)",
+          transition: "transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)",
+          maxWidth: 480,
+        }}
+      >
+        <div style={{ height: "2px", background: "linear-gradient(90deg, transparent, #e8001c 40%, #e8001c 60%, transparent)" }} />
+
+        <div className="ws-choice-header">
+          <div>
+            <p className="section-tag mb-0.5">SLOT {slotIndex + 1}</p>
+            <h2 className="ws-modal-title">WHAT ARE YOU BUILDING?</h2>
+          </div>
+          <button className="ws-modal-close" onClick={handleClose}>
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3l10 10M13 3L3 13" /></svg>
+          </button>
+        </div>
+
+        <div className="ws-choice-options">
+          {/* Build Part */}
+          <button className="ws-choice-card" onClick={onBuildPart}>
+            <div className="ws-choice-icon" style={{ borderColor: "rgba(232,0,28,0.3)", background: "rgba(232,0,28,0.06)" }}>
+              <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="#e8001c" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+              </svg>
+            </div>
+            <div className="ws-choice-text">
+              <p className="ws-choice-title">BUILD A PART</p>
+              <p className="ws-choice-desc">Craft an engine, suspension, chassis, or other component from raw materials.</p>
+            </div>
+            <svg viewBox="0 0 16 16" className="w-4 h-4 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M6 12l4-4-4-4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          {/* Build Car */}
+          <button
+            className="ws-choice-card"
+            onClick={onBuildCar}
+            style={{ opacity: hasBluprints ? 1 : 0.45 }}
+          >
+            <div className="ws-choice-icon" style={{ borderColor: "rgba(201,168,76,0.3)", background: "rgba(201,168,76,0.06)" }}>
+              <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="#c9a84c" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v9a2 2 0 01-2 2h-2" />
+                <circle cx="9" cy="17" r="2" />
+                <circle cx="17" cy="17" r="2" />
+              </svg>
+            </div>
+            <div className="ws-choice-text">
+              <p className="ws-choice-title" style={{ color: "#c9a84c" }}>BUILD A CAR</p>
+              <p className="ws-choice-desc">
+                {hasBluprints
+                  ? "Assemble a complete car using a blueprint and 6 part slots."
+                  : "You need blueprints to build a car. Acquire them from races or the market."}
+              </p>
+            </div>
+            {hasBluprints && (
+              <svg viewBox="0 0 16 16" className="w-4 h-4 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M6 12l4-4-4-4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Build Car Modal ─────────────────────────────────────────────────────────
+
+const CAR_SLOTS = ["engine", "suspension", "chassis", "brakes", "gearbox", "tires"] as const;
+type CarSlot = typeof CAR_SLOTS[number];
+
+const CAR_SLOT_LABELS: Record<CarSlot, string> = {
+  engine: "Engine", suspension: "Suspension", chassis: "Chassis",
+  brakes: "Brakes", gearbox: "Gearbox", tires: "Tires",
+};
+
+const ARCHETYPE_LABELS: Record<string, string> = {
+  sports_car: "SPORTS", luxury_car: "LUXURY", classic_car: "CLASSIC",
+};
+const ARCHETYPE_COLORS: Record<string, string> = {
+  sports_car: "#e8001c", luxury_car: "#c9a84c", classic_car: "#60a5fa",
+};
+
+function BuildCarModal({
+  blueprints,
+  inventory,
+  engineers,
+  slotIndex,
+  onClose,
+  onSuccess,
+}: {
+  blueprints: CarBlueprint[];
+  inventory: InventoryPart[];
+  engineers: EngineerFull[];
+  slotIndex: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedBlueprint, setSelectedBlueprint] = useState<CarBlueprint | null>(null);
+  const [partSlots, setPartSlots] = useState<Partial<Record<CarSlot, InventoryPart>>>({});
+  const [activeSlot, setActiveSlot] = useState<CarSlot | null>(null);
+  const [selectedEngineer1, setSelectedEngineer1] = useState<EngineerFull | null>(null);
+  const [selectedEngineer2, setSelectedEngineer2] = useState<EngineerFull | null>(null);
+  const [carName, setCarName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [activeSlotFilter, setActiveSlotFilter] = useState<CarSlot>("engine");
+
+  const idleEngineers = engineers.filter((e) => e.status === "idle");
+  const allSlotsAssigned = CAR_SLOTS.every((s) => partSlots[s]);
+
+  useEffect(() => { setTimeout(() => setVisible(true), 10); }, []);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") handleClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  });
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  function handleClose() {
+    setVisible(false);
+    setTimeout(onClose, 260);
+  }
+
+  function assignPart(slot: CarSlot, part: InventoryPart) {
+    setPartSlots((prev) => ({ ...prev, [slot]: part }));
+    setActiveSlot(null);
+  }
+
+  function clearSlot(slot: CarSlot) {
+    setPartSlots((prev) => { const n = { ...prev }; delete n[slot]; return n; });
+  }
+
+  async function handleBuild() {
+    if (!selectedBlueprint || !allSlotsAssigned) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/workshop/build-car", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          car_template_id: selectedBlueprint.car_template_id,
+          car_name: carName.trim() || selectedBlueprint.name,
+          slot_index: slotIndex,
+          engineer_id_1: selectedEngineer1?.id ?? null,
+          engineer_id_2: selectedEngineer2?.id ?? null,
+          part_engine_id:     partSlots.engine?.id,
+          part_suspension_id: partSlots.suspension?.id,
+          part_chassis_id:    partSlots.chassis?.id,
+          part_brakes_id:     partSlots.brakes?.id,
+          part_gearbox_id:    partSlots.gearbox?.id,
+          part_tires_id:      partSlots.tires?.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Failed to start build"); setLoading(false); return; }
+      onSuccess();
+    } catch {
+      setError("Network error. Please try again.");
+      setLoading(false);
+    }
+  }
+
+  // Inventory parts filtered to a specific slot/category (not already assigned to another slot)
+  const assignedIds = new Set(Object.values(partSlots).map((p) => p.id));
+  const partsForSlot = (slot: CarSlot) =>
+    inventory.filter((p) => p.category === slot && (p.id === partSlots[slot]?.id || !assignedIds.has(p.id)));
+
+  return (
+    <div
+      className="ws-modal-backdrop"
+      style={{ opacity: visible ? 1 : 0, transition: "opacity 0.25s ease" }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+    >
+      <div
+        className="ws-modal-sheet"
+        style={{
+          transform: visible ? "translateY(0)" : "translateY(40px)",
+          transition: "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+          maxWidth: 740,
+        }}
+      >
+        {/* Gold accent top line */}
+        <div style={{ height: "2px", background: "linear-gradient(90deg, transparent, #c9a84c 40%, #c9a84c 60%, transparent)" }} />
+
+        {/* Header */}
+        <div className="ws-modal-header">
+          <div>
+            <p className="section-tag mb-0.5">WORKSHOP</p>
+            <h2 className="ws-modal-title">
+              {step === 1 ? "SELECT BLUEPRINT" : step === 2 ? "ASSIGN PARTS" : "FINALIZE BUILD"}
+            </h2>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              {[1, 2, 3].map((s) => (
+                <div key={s} className="ws-step-dot" style={{
+                  background: step >= s ? "#c9a84c" : "rgba(255,255,255,0.1)",
+                  boxShadow: step === s ? "0 0 6px #c9a84c88" : "none",
+                }} />
+              ))}
+            </div>
+            <button className="ws-modal-close" onClick={handleClose}>
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M3 3l10 10M13 3L3 13" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* ── STEP 1: Blueprint selection ─────────── */}
+        {step === 1 && (
+          <>
+            <div className="ws-modal-body">
+              <p className="ws-modal-section-label">AVAILABLE BLUEPRINTS · {blueprints.length}</p>
+              {blueprints.length === 0 ? (
+                <div className="ws-empty-small">No blueprints available. Acquire them from the market or races.</div>
+              ) : (
+                <div className="ws-blueprint-grid">
+                  {blueprints.map((bp) => {
+                    const archColor = ARCHETYPE_COLORS[bp.archetype] ?? "#e8001c";
+                    const isSelected = selectedBlueprint?.car_template_id === bp.car_template_id;
+                    return (
+                      <button
+                        key={bp.car_template_id}
+                        className="ws-blueprint-card"
+                        style={{
+                          borderColor: isSelected ? archColor : "rgba(255,255,255,0.08)",
+                          background: isSelected ? archColor + "0d" : "rgba(255,255,255,0.02)",
+                          boxShadow: isSelected ? `0 0 0 1px ${archColor}44, inset 0 0 24px ${archColor}06` : "none",
+                        }}
+                        onClick={() => setSelectedBlueprint(isSelected ? null : bp)}
+                      >
+                        {isSelected && (
+                          <div className="ws-bp-selected-line" style={{ background: archColor }} />
+                        )}
+                        {/* Art area */}
+                        <div className="ws-bp-art" style={{ background: `radial-gradient(ellipse at 50% 60%, ${archColor}18, transparent 70%)` }}>
+                          <div className="ws-bp-model-code" style={{ color: archColor }}>{bp.model_code}</div>
+                          <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.012) 3px, rgba(255,255,255,0.012) 6px)" }} />
+                          {/* Car silhouette placeholder */}
+                          <svg viewBox="0 0 80 40" className="ws-bp-silhouette" fill="none" stroke={archColor} strokeWidth="0.8" opacity="0.35">
+                            <path d="M5 28 Q5 22 12 20 L20 14 Q28 10 42 10 Q54 10 62 14 L70 20 Q76 22 76 28 L76 32 Q76 34 74 34 L60 34 Q58 38 54 38 Q50 38 48 34 L32 34 Q30 38 26 38 Q22 38 20 34 L6 34 Q4 34 4 32 Z" />
+                            <circle cx="26" cy="34" r="5" />
+                            <circle cx="54" cy="34" r="5" />
+                          </svg>
+                        </div>
+
+                        <div className="ws-bp-info">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="ws-bp-name">{bp.name}</span>
+                            <span className="ws-bp-archetype" style={{ color: archColor, borderColor: archColor + "44", background: archColor + "14" }}>
+                              {ARCHETYPE_LABELS[bp.archetype] ?? bp.archetype.toUpperCase()}
+                            </span>
+                          </div>
+                          {bp.description && (
+                            <p className="ws-bp-desc">{bp.description}</p>
+                          )}
+                          <div className="ws-bp-stats">
+                            {[
+                              { l: "SPD", v: bp.base_speed },
+                              { l: "ACC", v: bp.base_acceleration },
+                              { l: "HDL", v: bp.base_handling },
+                              { l: "DUR", v: bp.base_durability },
+                            ].map((s) => (
+                              <div key={s.l} className="ws-bp-stat">
+                                <span className="ws-bp-stat-v" style={{ color: isSelected ? archColor : "var(--color-text-muted)" }}>{s.v}</span>
+                                <span className="ws-bp-stat-k">{s.l}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="ws-bp-qty">
+                            <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <rect x="1.5" y="2.5" width="9" height="8" rx="0.5" />
+                              <path d="M4 2.5V1.5a2 2 0 014 0v1" strokeLinecap="round" />
+                            </svg>
+                            ×{bp.quantity} {bp.quantity === 1 ? "blueprint" : "blueprints"}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="ws-modal-footer">
+              {error && <p className="ws-error">{error}</p>}
+              <div className="flex gap-2">
+                <button className="btn-secondary text-xs flex-1" onClick={handleClose}>CANCEL</button>
+                <button
+                  className="btn-primary text-xs flex-1"
+                  disabled={!selectedBlueprint}
+                  style={{ opacity: selectedBlueprint ? 1 : 0.4, background: selectedBlueprint ? "#c9a84c" : undefined, borderColor: selectedBlueprint ? "#c9a84c" : undefined }}
+                  onClick={() => setStep(2)}
+                >
+                  NEXT: ASSIGN PARTS
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 2: Part slot assignment ─────────── */}
+        {step === 2 && (
+          <>
+            <div className="ws-modal-body">
+              {selectedBlueprint && (
+                <div className="ws-part-summary" style={{ borderColor: `${ARCHETYPE_COLORS[selectedBlueprint.archetype] ?? "#e8001c"}33`, background: `${ARCHETYPE_COLORS[selectedBlueprint.archetype] ?? "#e8001c"}08`, marginBottom: 16 }}>
+                  <div className="flex items-center gap-2">
+                    <span className="ws-bp-model-badge" style={{ color: ARCHETYPE_COLORS[selectedBlueprint.archetype] ?? "#e8001c" }}>{selectedBlueprint.model_code}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "white" }}>{selectedBlueprint.name}</span>
+                  </div>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: "var(--color-text-muted)" }}>
+                    {CAR_SLOTS.filter((s) => partSlots[s]).length} / {CAR_SLOTS.length} PARTS ASSIGNED
+                  </span>
+                </div>
+              )}
+
+              {/* Slot tabs */}
+              <div className="ws-cat-scroll mb-3">
+                {CAR_SLOTS.map((slot) => {
+                  const assigned = !!partSlots[slot];
+                  const cfg = assigned ? RARITY_CONFIG[partSlots[slot]!.rarity] : null;
+                  return (
+                    <button
+                      key={slot}
+                      className="ws-slot-tab-btn"
+                      style={{
+                        borderColor: activeSlotFilter === slot ? (cfg?.accent ?? "#e8001c") : assigned ? ((cfg?.accent ?? "#4ade80") + "44") : "transparent",
+                        color: activeSlotFilter === slot ? "white" : assigned ? (cfg?.accent ?? "#4ade80") : "var(--color-text-muted)",
+                        background: activeSlotFilter === slot ? ((cfg?.accent ?? "#e8001c") + "18") : "transparent",
+                      }}
+                      onClick={() => setActiveSlotFilter(slot)}
+                    >
+                      {assigned && <span className="ws-slot-tab-dot" style={{ background: cfg?.accent ?? "#4ade80" }} />}
+                      {CAR_SLOT_LABELS[slot].toUpperCase()}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Part picker for active slot */}
+              <p className="ws-modal-section-label">
+                SELECT {activeSlotFilter.toUpperCase()} — {partsForSlot(activeSlotFilter).length} AVAILABLE
+              </p>
+
+              {partsForSlot(activeSlotFilter).length === 0 ? (
+                <div className="ws-empty-small">No {activeSlotFilter} parts in inventory. Craft some first.</div>
+              ) : (
+                <div className="ws-car-part-grid">
+                  {partsForSlot(activeSlotFilter).map((part) => {
+                    const cfg = RARITY_CONFIG[part.rarity] ?? RARITY_CONFIG.common;
+                    const isAssigned = partSlots[activeSlotFilter]?.id === part.id;
+                    const catPair = CATEGORY_STAT_PAIRS[part.category] ?? CATEGORY_STAT_PAIRS.engine;
+                    return (
+                      <button
+                        key={part.id}
+                        className="ws-car-part-card"
+                        style={{
+                          borderColor: isAssigned ? cfg.accent : "rgba(255,255,255,0.08)",
+                          background: isAssigned ? cfg.accent + "12" : "rgba(255,255,255,0.02)",
+                          boxShadow: isAssigned ? `0 0 0 1px ${cfg.accent}44` : "none",
+                        }}
+                        onClick={() => isAssigned ? clearSlot(activeSlotFilter) : assignPart(activeSlotFilter, part)}
+                      >
+                        {isAssigned && <div className="ws-part-selected-corner" style={{ borderRightColor: cfg.accent }} />}
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <CategoryIcon category={part.category} size={10} color={isAssigned ? cfg.accent : "#555"} />
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: isAssigned ? cfg.accent : "var(--color-text-muted)", letterSpacing: "0.08em" }}>
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <p className="ws-car-part-name" style={{ color: isAssigned ? "white" : "var(--color-text-muted)" }}>{part.name}</p>
+                        <div className="ws-car-part-stats">
+                          {catPair.map((s) => (
+                            <div key={s.label} className="ws-car-part-stat">
+                              <span style={{ color: isAssigned ? cfg.accent : "var(--color-text-muted)", fontFamily: "var(--font-mono)", fontSize: "12px", fontWeight: 500 }}>
+                                {part[s.key] as number}
+                              </span>
+                              <span style={{ color: "var(--color-text-subtle)", fontFamily: "var(--font-mono)", fontSize: "8px", letterSpacing: "0.06em" }}>{s.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="ws-modal-footer">
+              {error && <p className="ws-error">{error}</p>}
+              <div className="flex gap-2">
+                <button className="btn-secondary text-xs" onClick={() => { setStep(1); setError(null); }}>BACK</button>
+                <button
+                  className="btn-primary text-xs flex-1"
+                  disabled={!allSlotsAssigned}
+                  style={{ opacity: allSlotsAssigned ? 1 : 0.4, background: allSlotsAssigned ? "#c9a84c" : undefined, borderColor: allSlotsAssigned ? "#c9a84c" : undefined }}
+                  onClick={() => setStep(3)}
+                >
+                  NEXT: FINALIZE ({CAR_SLOTS.filter((s) => partSlots[s]).length}/{CAR_SLOTS.length})
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 3: Finalize ─────────────────────── */}
+        {step === 3 && selectedBlueprint && (
+          <>
+            <div className="ws-modal-body">
+              {/* Car name input */}
+              <p className="ws-modal-section-label">NAME YOUR CAR</p>
+              <div className="ws-car-name-input-wrap">
+                <input
+                  type="text"
+                  className="ws-car-name-input"
+                  placeholder={selectedBlueprint.name}
+                  value={carName}
+                  maxLength={40}
+                  onChange={(e) => setCarName(e.target.value)}
+                />
+              </div>
+
+              {/* Parts summary */}
+              <p className="ws-modal-section-label mt-4">PARTS ASSIGNED</p>
+              <div className="ws-parts-summary-grid">
+                {CAR_SLOTS.map((slot) => {
+                  const part = partSlots[slot];
+                  const cfg = part ? (RARITY_CONFIG[part.rarity] ?? RARITY_CONFIG.common) : null;
+                  return (
+                    <div key={slot} className="ws-part-summary-row" style={{ borderColor: cfg ? cfg.border : "rgba(255,255,255,0.06)" }}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CategoryIcon category={slot} size={11} color={cfg?.accent ?? "#333"} />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: "var(--color-text-subtle)", letterSpacing: "0.08em", flexShrink: 0 }}>
+                          {CAR_SLOT_LABELS[slot].toUpperCase()}
+                        </span>
+                      </div>
+                      {part ? (
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: cfg?.accent ?? "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {part.name}
+                          </span>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "8px", color: "var(--color-text-subtle)" }}>{cfg?.label}</span>
+                        </div>
+                      ) : (
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: "#f87171" }}>NOT ASSIGNED</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Engineer assignment */}
+              <p className="ws-modal-section-label mt-4">ASSIGN ENGINEERS <span style={{ color: "var(--color-text-subtle)", marginLeft: 8 }}>2 RECOMMENDED</span></p>
+              {idleEngineers.length === 0 ? (
+                <div className="ws-empty-small">No idle engineers. Build will proceed without them.</div>
+              ) : (
+                <div className="ws-eng-select-grid">
+                  {idleEngineers.map((eng) => {
+                    const cfg = RARITY_CONFIG[eng.rarity];
+                    const isE1 = selectedEngineer1?.id === eng.id;
+                    const isE2 = selectedEngineer2?.id === eng.id;
+                    const isSelected = isE1 || isE2;
+                    return (
+                      <button
+                        key={eng.id}
+                        className="ws-eng-select-card"
+                        style={{
+                          borderColor: isSelected ? cfg.accent : "rgba(255,255,255,0.08)",
+                          background: isSelected ? cfg.accent + "0a" : "rgba(255,255,255,0.02)",
+                          boxShadow: isSelected ? `0 0 0 1px ${cfg.accent}44` : "none",
+                        }}
+                        onClick={() => {
+                          if (isE1) { setSelectedEngineer1(selectedEngineer2); setSelectedEngineer2(null); }
+                          else if (isE2) { setSelectedEngineer2(null); }
+                          else if (!selectedEngineer1) setSelectedEngineer1(eng);
+                          else if (!selectedEngineer2) setSelectedEngineer2(eng);
+                        }}
+                      >
+                        <div className="ws-eng-select-portrait">
+                          <Image src="/assets/drivers/placeholder-3x4.svg" alt={eng.name} fill className="object-cover" style={{ opacity: 0.3 }} sizes="40px" />
+                          <div className="ws-eng-select-overlay" style={{ background: cfg.accent + "22" }} />
+                        </div>
+                        <div className="ws-eng-select-info">
+                          <p className="ws-eng-select-name">{eng.nickname ?? eng.name}</p>
+                          <div className="ws-eng-select-stats">
+                            <span style={{ color: "#4ade80" }}>⚡{eng.craft_speed}</span>
+                            <span style={{ color: "#60a5fa" }}>★{eng.quality_bonus}</span>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div className="ws-eng-check" style={{ background: cfg.accent }}>
+                            <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="ws-modal-footer">
+              {error && <p className="ws-error">{error}</p>}
+              <div className="flex gap-2">
+                <button className="btn-secondary text-xs" onClick={() => { setStep(2); setError(null); }}>BACK</button>
+                <button
+                  className="btn-primary text-xs flex-1"
+                  disabled={loading || !allSlotsAssigned}
+                  style={{ background: "#c9a84c", borderColor: "#c9a84c", opacity: (!allSlotsAssigned || loading) ? 0.4 : 1 }}
+                  onClick={handleBuild}
+                >
+                  {loading ? "STARTING BUILD…" : "START CAR BUILD"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("DEVELOP");
   const [buildModalSlot, setBuildModalSlot] = useState<number | null>(null);
+  const [buildCarModalSlot, setBuildCarModalSlot] = useState<number | null>(null);
+  const [slotChoiceModal, setSlotChoiceModal] = useState<number | null>(null);
   const [selectedEngineer, setSelectedEngineer] = useState<EngineerFull | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [invFilter, setInvFilter] = useState<string>("all");
   const [credits, setCredits] = useState(data.credits);
+  const [xgear, setXgear] = useState(data.xgear);
 
   useEffect(() => { setCredits(data.credits); }, [data.credits]);
+  useEffect(() => { setXgear(data.xgear); }, [data.xgear]);
 
   const handleClaim = useCallback(async (queueId: number) => {
     const res = await fetch("/api/workshop/claim", {
@@ -933,6 +1686,37 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
     });
     if (res.ok) router.refresh();
   }, [router]);
+
+  const handleClaimCar = useCallback(async (buildId: number) => {
+    const res = await fetch("/api/workshop/claim-car", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ build_id: buildId }),
+    });
+    if (res.ok) router.refresh();
+  }, [router]);
+
+  const handleCancelCar = useCallback(async (buildId: number) => {
+    const res = await fetch("/api/workshop/cancel-car", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ build_id: buildId }),
+    });
+    if (res.ok) router.refresh();
+  }, [router]);
+
+  const handleSpeedUp = useCallback(async (type: "part" | "car", id: number, cost: number) => {
+    if (xgear < cost) return;
+    const res = await fetch("/api/workshop/speedup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, id }),
+    });
+    if (res.ok) {
+      setXgear((x) => x - cost);
+      router.refresh();
+    }
+  }, [router, xgear]);
 
   const handleUpgrade = useCallback(async (field: string) => {
     setUpgradeLoading(true);
@@ -965,9 +1749,18 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
               <h1 className="ws-page-title">WORKSHOP</h1>
               <p className="ws-page-sub">Craft parts. Build cars. Dominate the market.</p>
             </div>
-            <div className="ws-header-credits">
-              <span className="ws-credits-val">{credits.toLocaleString()}</span>
-              <span className="ws-credits-label">CR</span>
+            <div className="flex items-center gap-3">
+              <div className="ws-header-xgear">
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="ws-xgear-val">{xgear.toLocaleString()}</span>
+                <span className="ws-xgear-label">XG</span>
+              </div>
+              <div className="ws-header-credits">
+                <span className="ws-credits-val">{credits.toLocaleString()}</span>
+                <span className="ws-credits-label">CR</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1000,9 +1793,13 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
                     key={slot.slot_index}
                     slot={slot}
                     index={i}
-                    onStartBuild={(idx) => setBuildModalSlot(idx)}
+                    xgear={xgear}
+                    onStartBuild={(idx) => setSlotChoiceModal(idx)}
                     onClaim={handleClaim}
                     onCancel={handleCancel}
+                    onClaimCar={handleClaimCar}
+                    onCancelCar={handleCancelCar}
+                    onSpeedUp={handleSpeedUp}
                   />
                 ))}
               </div>
@@ -1092,7 +1889,7 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
                   <p className="ws-empty-sub">Craft parts in the Develop tab to fill your inventory.</p>
                 </div>
               ) : (
-                <div className="ws-inv-grid">
+                <div className="ws-inv-grid-v2">
                   {filteredInventory.map((part, i) => (
                     <InventoryCard key={part.id} part={part} index={i} />
                   ))}
@@ -1135,7 +1932,18 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
         </div>{/* ws-tab-content */}
       </div>{/* ws-page */}
 
-      {/* Build Modal */}
+      {/* Slot Choice Modal — "Build Part" or "Build Car" */}
+      {slotChoiceModal !== null && (
+        <SlotChoiceModal
+          slotIndex={slotChoiceModal}
+          hasBluprints={(data.blueprints?.length ?? 0) > 0}
+          onBuildPart={() => { setSlotChoiceModal(null); setBuildModalSlot(slotChoiceModal); }}
+          onBuildCar={() => { setSlotChoiceModal(null); setBuildCarModalSlot(slotChoiceModal); }}
+          onClose={() => setSlotChoiceModal(null)}
+        />
+      )}
+
+      {/* Build Part Modal */}
       {buildModalSlot !== null && (
         <BuildModal
           slotIndex={buildModalSlot}
@@ -1144,6 +1952,18 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
           engineers={data.engineers}
           onClose={() => setBuildModalSlot(null)}
           onSuccess={() => { setBuildModalSlot(null); router.refresh(); }}
+        />
+      )}
+
+      {/* Build Car Modal */}
+      {buildCarModalSlot !== null && (
+        <BuildCarModal
+          blueprints={data.blueprints ?? []}
+          inventory={data.inventory}
+          engineers={data.engineers}
+          slotIndex={buildCarModalSlot}
+          onClose={() => setBuildCarModalSlot(null)}
+          onSuccess={() => { setBuildCarModalSlot(null); router.refresh(); }}
         />
       )}
 
@@ -1206,6 +2026,27 @@ const WORKSHOP_STYLES = `
   .ws-credits-label {
     font-size: 10px;
     color: rgba(255,255,255,0.3);
+    letter-spacing: 0.1em;
+  }
+  .ws-header-xgear {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    padding-right: 12px;
+  }
+  .ws-header-xgear svg { color: #38bdf8; }
+  .ws-xgear-val {
+    font-family: var(--font-mono, 'JetBrains Mono'), monospace;
+    font-size: 18px;
+    color: #38bdf8;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .ws-xgear-label {
+    font-size: 10px;
+    color: rgba(56,189,248,0.4);
     letter-spacing: 0.1em;
   }
 
@@ -1360,6 +2201,14 @@ const WORKSHOP_STYLES = `
     color: var(--color-text-muted);
     text-transform: uppercase;
   }
+  .ws-slot-idle-sub {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    color: var(--color-text-subtle);
+    text-transform: uppercase;
+    margin-top: -4px;
+  }
   .ws-slot-num {
     font-family: var(--font-mono);
     font-size: 8px;
@@ -1443,6 +2292,34 @@ const WORKSHOP_STYLES = `
     border-radius: 1px;
   }
   .ws-cancel-btn:hover { color: #f87171; border-color: rgba(248,113,113,0.4); }
+  .ws-slot-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ws-speedup-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    color: #38bdf8;
+    background: rgba(56,189,248,0.08);
+    border: 1px solid rgba(56,189,248,0.25);
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    border-radius: 1px;
+  }
+  .ws-speedup-btn:hover:not(:disabled) {
+    background: rgba(56,189,248,0.18);
+    border-color: rgba(56,189,248,0.5);
+  }
+  .ws-speedup-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
 
   /* Progress bar */
   .ws-progress-track {
@@ -1613,71 +2490,84 @@ const WORKSHOP_STYLES = `
     background-image: repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px);
   }
 
-  /* ── Inventory Grid ──────────────────────────── */
-  .ws-inv-grid {
+  /* ── Inventory Grid v2 (market-style full-bleed) ── */
+  .ws-inv-grid-v2 {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
-  @media (min-width: 480px) { .ws-inv-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (min-width: 768px) { .ws-inv-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 480px) { .ws-inv-grid-v2 { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 768px) { .ws-inv-grid-v2 { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
+  @media (min-width: 1024px) { .ws-inv-grid-v2 { grid-template-columns: repeat(5, 1fr); } }
 
-  .ws-inv-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+  .ws-inv-card-v2 {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border: 1px solid;
     border-radius: 2px;
-    padding: 12px;
+    overflow: hidden;
     animation: driverCardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-    transition: border-color 0.2s;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: default;
   }
-  .ws-inv-card:hover { border-color: var(--color-border-strong); }
-  .ws-inv-card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 6px;
+  .ws-inv-card-v2:hover {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.7), 0 0 0 1px var(--inv-accent, rgba(255,255,255,0.2));
   }
-  .ws-inv-cat-badge {
-    display: flex; align-items: center; gap: 4px;
-    font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em;
-    color: var(--color-text-muted); text-transform: uppercase;
+  .ws-inv-bg-img {
+    object-fit: cover;
+    object-position: center;
+    opacity: 0.18;
+    transition: opacity 0.3s;
   }
-  .ws-inv-tier {
-    font-family: var(--font-mono); font-size: 9px;
-    color: var(--color-text-muted); letter-spacing: 0.06em;
+  .ws-inv-card-v2:hover .ws-inv-bg-img { opacity: 0.28; }
+  .ws-inv-scrim {
+    position: absolute; inset: 0; pointer-events: none;
   }
-  .ws-inv-qty {
-    font-family: var(--font-mono); font-size: 10px;
-    color: white; background: rgba(255,255,255,0.08);
-    padding: 1px 5px; border-radius: 1px; letter-spacing: 0.04em;
+  .ws-inv-rarity-glow {
+    position: absolute; inset: 0; pointer-events: none;
   }
-  .ws-inv-name {
-    font-family: var(--font-mono); font-size: 11px;
-    color: white; letter-spacing: 0.04em;
-    margin-bottom: 8px; line-height: 1.3;
+  .ws-inv-accent-line {
+    position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 2;
   }
-  .ws-inv-quality {
-    display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  .ws-inv-overlay {
+    position: absolute; inset: 0; z-index: 3;
+    display: flex; flex-direction: column;
+    padding: 8px;
   }
-  .ws-inv-quality-track {
-    flex: 1; height: 2px;
-    background: rgba(255,255,255,0.06); border-radius: 1px; overflow: hidden;
+  .ws-inv-top-row {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 4px;
   }
-  .ws-inv-quality-fill {
-    height: 100%; border-radius: 1px; transition: width 0.5s ease;
+  .ws-inv-cat-pill {
+    display: flex; align-items: center; gap: 3px;
+    font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
-  .ws-inv-stats {
-    display: flex; gap: 8px; flex-wrap: wrap;
+  .ws-inv-rarity-badge {
+    font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.08em;
+    border: 1px solid; border-radius: 1px; padding: 1px 4px;
+    line-height: 1.4;
   }
-  .ws-inv-stat {
-    display: flex; flex-direction: column; align-items: center;
-    min-width: 28px;
+  .ws-inv-bottom {
+    display: flex; flex-direction: column; gap: 6px;
   }
-  .ws-inv-stat-label {
-    font-family: var(--font-mono); font-size: 8px;
-    color: var(--color-text-subtle); letter-spacing: 0.08em;
+  .ws-inv-name-v2 {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+    color: white; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .ws-inv-stat-val {
-    font-family: var(--font-mono); font-size: 11px;
-    color: var(--color-text-muted);
+  .ws-inv-stats-row {
+    display: flex; gap: 8px;
+  }
+  .ws-inv-stat-block {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  }
+  .ws-inv-stat-val-v2 {
+    font-family: var(--font-mono); font-size: 14px; line-height: 1; font-weight: 500;
+  }
+  .ws-inv-stat-key {
+    font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.08em;
+    color: var(--color-text-subtle); text-transform: uppercase;
   }
 
   /* ── Category Filter ─────────────────────────── */
@@ -1979,4 +2869,171 @@ const WORKSHOP_STYLES = `
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+
+  /* ── Slot Choice Modal ───────────────────────── */
+  .ws-choice-sheet {
+    border-radius: 8px 8px 0 0;
+  }
+  @media (min-width: 768px) { .ws-choice-sheet { border-radius: 6px; } }
+  .ws-choice-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 16px 16px 12px;
+  }
+  .ws-choice-options {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 0 16px 20px;
+  }
+  .ws-choice-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.02);
+    cursor: pointer; text-align: left; width: 100%;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  }
+  .ws-choice-card:hover {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.16);
+    transform: translateX(2px);
+  }
+  .ws-choice-card:disabled { opacity: 0.45; cursor: not-allowed; }
+  .ws-choice-icon {
+    width: 52px; height: 52px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid; border-radius: 4px;
+  }
+  .ws-choice-text { flex: 1; min-width: 0; }
+  .ws-choice-title {
+    font-family: var(--font-display); font-size: 18px; letter-spacing: 0.08em;
+    color: white; line-height: 1; margin-bottom: 4px;
+  }
+  .ws-choice-desc {
+    font-size: 12px; color: var(--color-text-muted); line-height: 1.55;
+  }
+
+  /* ── Blueprint Grid ──────────────────────────── */
+  .ws-blueprint-grid {
+    display: grid; grid-template-columns: 1fr; gap: 10px;
+    max-height: 55vh; overflow-y: auto; scrollbar-width: thin;
+  }
+  @media (min-width: 480px) { .ws-blueprint-grid { grid-template-columns: repeat(2, 1fr); } }
+  .ws-blueprint-card {
+    position: relative; border: 1px solid; border-radius: 3px;
+    overflow: hidden; cursor: pointer; text-align: left;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    display: flex; flex-direction: column;
+  }
+  .ws-blueprint-card:hover { transform: translateY(-1px); }
+  .ws-bp-selected-line {
+    position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 2;
+  }
+  .ws-bp-art {
+    position: relative; height: 88px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .ws-bp-model-code {
+    position: absolute; top: 8px; left: 10px;
+    font-family: var(--font-display); font-size: 22px; letter-spacing: 0.1em;
+    line-height: 1; z-index: 1; opacity: 0.5;
+  }
+  .ws-bp-silhouette {
+    width: 100px; height: 50px; position: relative; z-index: 1;
+  }
+  .ws-bp-info { padding: 10px 12px 12px; }
+  .ws-bp-name {
+    font-family: var(--font-mono); font-size: 11px; color: white;
+    letter-spacing: 0.04em; line-height: 1.2; flex: 1; min-width: 0;
+  }
+  .ws-bp-archetype {
+    font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em;
+    border: 1px solid; border-radius: 1px; padding: 2px 6px; flex-shrink: 0;
+  }
+  .ws-bp-desc {
+    font-size: 11px; color: var(--color-text-muted); line-height: 1.5;
+    margin-top: 4px; margin-bottom: 8px;
+  }
+  .ws-bp-stats {
+    display: flex; gap: 12px; margin-bottom: 8px;
+  }
+  .ws-bp-stat {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  }
+  .ws-bp-stat-v {
+    font-family: var(--font-mono); font-size: 14px; line-height: 1; font-weight: 500;
+  }
+  .ws-bp-stat-k {
+    font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.08em;
+    color: var(--color-text-subtle);
+  }
+  .ws-bp-qty {
+    display: flex; align-items: center; gap: 4px;
+    font-family: var(--font-mono); font-size: 9px;
+    color: var(--color-text-subtle); letter-spacing: 0.06em;
+  }
+  .ws-bp-model-badge {
+    font-family: var(--font-display); font-size: 14px; letter-spacing: 0.1em;
+  }
+
+  /* ── Car Part Grid (step 2 of Build Car) ─────── */
+  .ws-car-part-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+    max-height: 40vh; overflow-y: auto; scrollbar-width: thin;
+  }
+  @media (min-width: 480px) { .ws-car-part-grid { grid-template-columns: repeat(3, 1fr); } }
+  .ws-car-part-card {
+    position: relative; border: 1px solid; border-radius: 2px;
+    padding: 10px; cursor: pointer; text-align: left;
+    transition: all 0.15s;
+  }
+  .ws-car-part-card:hover { transform: translateY(-1px); }
+  .ws-car-part-name {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+    line-height: 1.3; margin-bottom: 6px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .ws-car-part-stats {
+    display: flex; gap: 10px;
+  }
+  .ws-car-part-stat {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  }
+  .ws-slot-tab-btn {
+    flex-shrink: 0; display: flex; align-items: center; gap: 4px;
+    padding: 5px 10px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+    border: 1px solid transparent; border-radius: 1px;
+    cursor: pointer; transition: all 0.15s; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .ws-slot-tab-dot {
+    width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  /* ── Parts Summary Grid (step 3 of Build Car) ── */
+  .ws-parts-summary-grid {
+    display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px;
+  }
+  .ws-part-summary-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border: 1px solid; border-radius: 1px;
+    background: rgba(255,255,255,0.02); gap: 8px;
+  }
+
+  /* ── Car Name Input ───────────────────────────── */
+  .ws-car-name-input-wrap {
+    margin-bottom: 4px;
+  }
+  .ws-car-name-input {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 2px;
+    padding: 10px 12px;
+    font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.04em;
+    color: white; outline: none;
+    transition: border-color 0.15s;
+  }
+  .ws-car-name-input:focus { border-color: #c9a84c; }
+  .ws-car-name-input::placeholder { color: var(--color-text-subtle); }
 `;

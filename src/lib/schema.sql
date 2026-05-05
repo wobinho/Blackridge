@@ -217,6 +217,7 @@ CREATE TABLE IF NOT EXISTS car_crafting_queue (
   part_brakes_id    INTEGER NOT NULL REFERENCES inventory_parts(id),
   part_gearbox_id   INTEGER NOT NULL REFERENCES inventory_parts(id),
   part_tires_id     INTEGER NOT NULL REFERENCES inventory_parts(id),
+  slot_index        INTEGER NOT NULL DEFAULT 0,
   status            TEXT    NOT NULL DEFAULT 'crafting' CHECK (status IN ('crafting','completed','cancelled')),
   started_at        INTEGER NOT NULL DEFAULT (unixepoch()),
   completes_at      INTEGER NOT NULL,

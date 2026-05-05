@@ -93,19 +93,20 @@ function Toast({ toast }: { toast: { msg: string; type: "ok" | "err" } | null })
 // ─── Countdown ───────────────────────────────────────────────────────────────
 
 function RefreshCountdown({ refreshAt, onZero }: { refreshAt: number; onZero?: () => void }) {
-  const [rem, setRem] = useState(() => Math.max(0, refreshAt - Math.floor(Date.now() / 1000)));
+  const [rem, setRem] = useState(0);
   const cbRef = useRef(onZero);
   cbRef.current = onZero;
 
   useEffect(() => {
-    if (rem <= 0) { cbRef.current?.(); return; }
+    const calc = () => Math.max(0, refreshAt - Math.floor(Date.now() / 1000));
+    setRem(calc());
     const id = setInterval(() => {
-      const r = Math.max(0, refreshAt - Math.floor(Date.now() / 1000));
+      const r = calc();
       setRem(r);
       if (r <= 0) cbRef.current?.();
     }, 1000);
     return () => clearInterval(id);
-  }, [refreshAt, rem]);
+  }, [refreshAt]);
 
   if (rem <= 0) return <span className="mkt-refresh-badge mkt-refresh-active">REFRESHING…</span>;
   return (

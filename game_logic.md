@@ -59,3 +59,9 @@ MATERIALS:
 - Materials are used to craft parts, here are the materials for the version 1 of the game: {STEEL}, {ALUMINUM}, {CARBON}, {TITANIUM}, {POLYMER}, {HARDWARE}, {ELECTRONICS}, {COMPOUNDS}, {POLYMER}, {FLUIDS}, {TRIMS}.
 - Here is the recipe to craft each part: ENGINE = TITANIUM + HARDWARE + FLUIDS, SUSPENSION = ALUMINUM + HARDWARE + COMPOUNDS, CHASSIS = CARBON + STEEL + TRIMS, BRAKES = TITANIUM + ELECTRONICS + FLUIDS, GEARBOX = STEEL + HARDWARE + ELECTRONICS, TIRES = CARBON + COMPOUNDS + POLYMER.
 - Parts do not have rarity. But it will have a chance to be a high rarity parts when crafted: 45% common part, 25% rare part, 15% epic part, 10% legendary part, 5% mythical part. (EVENT RARITY ARE FOR EVENTS ONLY, SO IGNORE THOSE FOR NOW)
+
+
+
+
+CAR SELLING FEATURE:
+- When putting the car for sale, normally you can see the car in the market, allowing other users to buy the car you listed. Lets add a new feature, quick sell. Allow users to quick sell cars, the price should be calculated based on the valuation of the stats/parts/wear. so basically the game will calculate the price based on these factors. But how to calculate? lets figure this out.

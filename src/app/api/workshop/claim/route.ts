@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   } | undefined;
 
   if (!entry) return NextResponse.json({ error: "Craft job not found" }, { status: 404 });
-  if (entry.status !== "crafting") return NextResponse.json({ error: "Job is not in progress" }, { status: 409 });
+  if (entry.status !== "crafting" && entry.status !== "completed") return NextResponse.json({ error: "Job is not claimable" }, { status: 409 });
 
   const now = Math.floor(Date.now() / 1000);
   if (now < entry.completes_at) {
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     Math.round(tmpl.sell_price * priceMult)
   );
 
-  db.prepare(`UPDATE crafting_queue SET status = 'completed' WHERE id = ?`).run(queue_id);
+  db.prepare(`DELETE FROM crafting_queue WHERE id = ?`).run(queue_id);
 
   db.prepare(
     `INSERT INTO activity_log (user_id, type, message, data) VALUES (?, 'craft_complete', ?, ?)`

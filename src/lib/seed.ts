@@ -144,6 +144,23 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
     db.prepare("INSERT INTO meta (key, value) VALUES ('xgear_starter_backfill_v1', '1')").run();
   }
 
+  // Backfill: give user id=1 two of every blueprint for testing
+  const blueprintBackfill = db.prepare("SELECT value FROM meta WHERE key = 'user1_blueprints_backfill_v1'").get();
+  if (!blueprintBackfill) {
+    const user1 = db.prepare("SELECT id FROM users WHERE id = 1").get() as { id: number } | undefined;
+    if (user1) {
+      const carTemplates = db.prepare("SELECT id FROM car_templates").all() as { id: number }[];
+      for (const ct of carTemplates) {
+        db.prepare(
+          `INSERT INTO user_blueprints (user_id, car_template_id, quantity)
+           VALUES (1, ?, 2)
+           ON CONFLICT(user_id, car_template_id) DO UPDATE SET quantity = MAX(quantity, 2)`
+        ).run(ct.id);
+      }
+    }
+    db.prepare("INSERT INTO meta (key, value) VALUES ('user1_blueprints_backfill_v1', '1')").run();
+  }
+
   if (seeded) return;
 
   // ============================================================

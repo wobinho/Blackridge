@@ -37,9 +37,10 @@ export interface PartTemplate {
 }
 
 export interface CraftSlot {
-  queue_id: number | null;
   slot_index: number;
   status: "idle" | "crafting" | "completed";
+  // part build fields
+  queue_id: number | null;
   part_template_id: number | null;
   part_name: string | null;
   part_category: string | null;
@@ -47,6 +48,16 @@ export interface CraftSlot {
   engineer_name: string | null;
   started_at: number | null;
   completes_at: number | null;
+  // car build fields (non-null when type === 'car')
+  type: "idle" | "part" | "car";
+  build_id: number | null;
+  car_name: string | null;
+  model_code: string | null;
+  archetype: string | null;
+  car_started_at: number | null;
+  car_completes_at: number | null;
+  car_engineer_name_1: string | null;
+  car_engineer_name_2: string | null;
 }
 
 export type Rarity = "common" | "rare" | "epic" | "legendary" | "mythical";
@@ -104,6 +115,28 @@ export interface WorkshopUpgrades {
   market_mat_rarity: number;
 }
 
+export interface CarBlueprint {
+  car_template_id: number;
+  name: string;
+  model_code: string;
+  archetype: string;
+  description: string | null;
+  base_speed: number;
+  base_acceleration: number;
+  base_handling: number;
+  base_stability: number;
+  base_durability: number;
+  base_weight: number;
+  base_braking: number;
+  base_control: number;
+  base_shift_speed: number;
+  base_efficiency: number;
+  base_grip: number;
+  base_cornering: number;
+  quantity: number;
+}
+
+
 export interface WorkshopPageData {
   materials: MaterialStock[];
   partTemplates: PartTemplate[];
@@ -112,6 +145,8 @@ export interface WorkshopPageData {
   engineers: EngineerFull[];
   upgrades: WorkshopUpgrades;
   credits: number;
+  xgear: number;
+  blueprints: CarBlueprint[];
 }
 
 export default async function WorkshopPage() {
@@ -181,24 +216,87 @@ export default async function WorkshopPage() {
     }
   }
 
+  const rawCarBuilds = db.prepare(
+    `SELECT ccq.id as build_id, ct.name as car_name, ct.model_code, ct.archetype,
+            ccq.status, ccq.started_at, ccq.completes_at, ccq.slot_index,
+            et1.name as engineer_name_1, et2.name as engineer_name_2
+     FROM car_crafting_queue ccq
+     JOIN car_templates ct ON ct.id = ccq.car_template_id
+     LEFT JOIN engineers e1 ON e1.id = ccq.engineer_id_1_opt
+     LEFT JOIN engineer_templates et1 ON et1.id = e1.template_id
+     LEFT JOIN engineers e2 ON e2.id = ccq.engineer_id_2_opt
+     LEFT JOIN engineer_templates et2 ON et2.id = e2.template_id
+     WHERE ccq.user_id = ? AND ccq.status IN ('crafting', 'completed')
+     ORDER BY ccq.started_at`
+  ).all(session.id) as {
+    build_id: number; car_name: string; model_code: string; archetype: string;
+    status: string; started_at: number; completes_at: number; slot_index: number;
+    engineer_name_1: string | null; engineer_name_2: string | null;
+  }[];
+
+  for (const build of rawCarBuilds) {
+    if (build.status === "crafting" && now >= build.completes_at) {
+      db.prepare(`UPDATE car_crafting_queue SET status = 'completed' WHERE id = ?`).run(build.build_id);
+      build.status = "completed";
+    }
+  }
+
   const jobsBySlot = new Map(activeJobs.map((j) => [j.slot_index, j]));
+  const carBuildsBySlot = new Map(rawCarBuilds.map((b) => [b.slot_index, b]));
 
   const craftSlots: CraftSlot[] = Array.from({ length: upgrades.develop_slots }, (_, i) => {
     const job = jobsBySlot.get(i);
-    if (!job) {
-      return { queue_id: null, slot_index: i, status: "idle", part_template_id: null, part_name: null, part_category: null, engineer_id: null, engineer_name: null, started_at: null, completes_at: null };
+    const carBuild = carBuildsBySlot.get(i);
+
+    if (carBuild) {
+      return {
+        slot_index: i,
+        type: "car",
+        status: carBuild.status as "crafting" | "completed",
+        // part fields empty
+        queue_id: null, part_template_id: null, part_name: null, part_category: null,
+        engineer_id: null, engineer_name: null, started_at: null, completes_at: null,
+        // car fields
+        build_id: carBuild.build_id,
+        car_name: carBuild.car_name,
+        model_code: carBuild.model_code,
+        archetype: carBuild.archetype,
+        car_started_at: carBuild.started_at,
+        car_completes_at: carBuild.completes_at,
+        car_engineer_name_1: carBuild.engineer_name_1,
+        car_engineer_name_2: carBuild.engineer_name_2,
+      };
     }
+
+    if (job) {
+      return {
+        slot_index: i,
+        type: "part",
+        status: job.status as "crafting" | "completed",
+        queue_id: job.queue_id,
+        part_template_id: job.part_template_id,
+        part_name: job.part_name,
+        part_category: job.part_category,
+        engineer_id: job.engineer_id,
+        engineer_name: job.engineer_name,
+        started_at: job.started_at,
+        completes_at: job.completes_at,
+        // car fields empty
+        build_id: null, car_name: null, model_code: null, archetype: null,
+        car_started_at: null, car_completes_at: null,
+        car_engineer_name_1: null, car_engineer_name_2: null,
+      };
+    }
+
     return {
-      queue_id: job.queue_id,
       slot_index: i,
-      status: job.status as "crafting" | "completed",
-      part_template_id: job.part_template_id,
-      part_name: job.part_name,
-      part_category: job.part_category,
-      engineer_id: job.engineer_id,
-      engineer_name: job.engineer_name,
-      started_at: job.started_at,
-      completes_at: job.completes_at,
+      type: "idle",
+      status: "idle",
+      queue_id: null, part_template_id: null, part_name: null, part_category: null,
+      engineer_id: null, engineer_name: null, started_at: null, completes_at: null,
+      build_id: null, car_name: null, model_code: null, archetype: null,
+      car_started_at: null, car_completes_at: null,
+      car_engineer_name_1: null, car_engineer_name_2: null,
     };
   });
 
@@ -225,7 +323,19 @@ export default async function WorkshopPage() {
      ORDER BY t.rarity DESC, e.level DESC`
   ).all(session.id) as EngineerFull[];
 
-  const user = db.prepare(`SELECT credits FROM users WHERE id = ?`).get(session.id) as { credits: number };
+  const user = db.prepare(`SELECT credits, xgear FROM users WHERE id = ?`).get(session.id) as { credits: number; xgear: number };
+
+  const blueprints = db.prepare(
+    `SELECT ct.id as car_template_id, ct.name, ct.model_code, ct.archetype, ct.description,
+            ct.base_speed, ct.base_acceleration, ct.base_handling, ct.base_stability,
+            ct.base_durability, ct.base_weight, ct.base_braking, ct.base_control,
+            ct.base_shift_speed, ct.base_efficiency, ct.base_grip, ct.base_cornering,
+            ub.quantity
+     FROM user_blueprints ub
+     JOIN car_templates ct ON ct.id = ub.car_template_id
+     WHERE ub.user_id = ? AND ub.quantity > 0
+     ORDER BY ct.archetype, ct.id`
+  ).all(session.id) as CarBlueprint[];
 
   return (
     <WorkshopClient
@@ -237,6 +347,8 @@ export default async function WorkshopPage() {
         engineers,
         upgrades,
         credits: user.credits,
+        xgear: user.xgear,
+        blueprints,
       }}
     />
   );

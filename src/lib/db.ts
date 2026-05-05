@@ -44,7 +44,14 @@ export function getDb(): DbWrapper {
 }
 
 export async function initDb(): Promise<DbWrapper> {
-  if (wrapper) return wrapper;
+  // In dev, always reload from disk so external DB edits are reflected immediately.
+  // In production the singleton is reused for performance.
+  if (wrapper && process.env.NODE_ENV === "production") return wrapper;
+
+  if (wrapper) {
+    wrapper = null;
+    db = null;
+  }
 
   const SQL = await getSqlJs();
 
@@ -90,6 +97,10 @@ function applyColumnMigrations(database: import("sql.js").Database): void {
     { table: "workshop_upgrades",  column: "market_mat_rarity", def: "INTEGER NOT NULL DEFAULT 0" },
     // materials
     { table: "materials",          column: "art",               def: "TEXT" },
+    // car_crafting_queue: make engineers optional + add slot tracking
+    { table: "car_crafting_queue", column: "engineer_id_1_opt", def: "INTEGER" },
+    { table: "car_crafting_queue", column: "engineer_id_2_opt", def: "INTEGER" },
+    { table: "car_crafting_queue", column: "slot_index",        def: "INTEGER NOT NULL DEFAULT 0" },
   ];
   for (const m of pending) {
     try {
@@ -110,12 +121,13 @@ function makeWrapper(database: SqlJsDatabase): DbWrapper {
       return {
         run(...params: unknown[]) {
           database.run(sql, params as never[]);
+          // Query last_insert_rowid immediately before persist() to avoid any state reset
+          const ridRows = database.exec("SELECT last_insert_rowid()");
+          const lastInsertRowid = (ridRows[0]?.values[0]?.[0] as number) ?? 0;
+          const changes = database.getRowsModified();
           dirty = true;
           persist();
-          // sql.js doesn't expose lastInsertRowid directly; query it
-          const rows = database.exec("SELECT last_insert_rowid() as id");
-          const lastInsertRowid = rows[0]?.values[0]?.[0] as number ?? 0;
-          return { lastInsertRowid, changes: database.getRowsModified() };
+          return { lastInsertRowid, changes };
         },
         get(...params: unknown[]) {
           const stmt = database.prepare(sql);

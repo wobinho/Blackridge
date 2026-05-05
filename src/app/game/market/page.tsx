@@ -96,6 +96,29 @@ export interface GachaEngineerTemplate extends GachaTemplate {
   base_race_bonus: number;
 }
 
+export interface ShardMarketSlot {
+  slot_type: "driver" | "engineer";
+  slot_index: number;
+  template_id: number;
+  rarity: "common" | "rare" | "epic" | "legendary";
+  price_shards: number;
+  refresh_at: number;
+  name: string;
+  nationality: string;
+  art: string | null;
+  bio: string | null;
+  already_owned: number; // 0 or 1
+  // driver stats (only present for driver slots)
+  base_speed?: number;
+  base_skill?: number;
+  base_stamina?: number;
+  base_aggression?: number;
+  // engineer stats (only present for engineer slots)
+  base_craft_speed?: number;
+  base_quality_bonus?: number;
+  base_race_bonus?: number;
+}
+
 export interface MarketPageData {
   materialSlots: MarketMaterialSlot[];
   partListings: MarketPartListing[];
@@ -104,10 +127,12 @@ export interface MarketPageData {
   engineerTemplates: GachaEngineerTemplate[];
   credits: number;
   xgear: number;
+  recruitShards: number;
   partNextRefresh: number;
   matNextRefresh: number;
   serverNow: number;
   pity: { driver: number; engineer: number };
+  shardMarket: { driverSlots: ShardMarketSlot[]; engineerSlots: ShardMarketSlot[]; refreshAt: number };
 }
 
 // Material IDs match seed order: 1=Steel,2=Aluminum,3=Carbon,4=Titanium,5=Polymer,6=Hardware,7=Electronics,8=Compounds,9=Fluids,10=Trims
@@ -141,6 +166,9 @@ const SLOT_POOLS: Array<Array<[number, number, number, number, number]>> = [
 ];
 const MAT_REFRESH = 180;
 const PART_REFRESH = 3600;
+const SHARD_MARKET_REFRESH = 86400;
+const SHARD_PRICES: Record<string, number> = { common: 25, rare: 50, epic: 100, legendary: 250 };
+const SHARD_MARKET_SLOTS = 4;
 
 function pick<T>(pool: T[]): T { return pool[Math.floor(Math.random() * pool.length)]; }
 function weightedPick<T extends [number, number, ...unknown[]]>(pool: T[]): T {
@@ -258,7 +286,69 @@ export default async function MarketPage() {
     `SELECT id, name, nationality, art, rarity, bio, base_craft_speed, base_quality_bonus, base_race_bonus FROM engineer_templates ORDER BY rarity DESC, id`
   ).all() as GachaEngineerTemplate[];
 
-  const user = db.prepare(`SELECT credits, xgear FROM users WHERE id = ?`).get(session.id) as { credits: number; xgear: number };
+  const user = db.prepare(`SELECT credits, xgear, recruit_shards FROM users WHERE id = ?`).get(session.id) as { credits: number; xgear: number; recruit_shards: number };
+
+  // --- Shard market slot refresh ---
+  for (const slotType of ["driver", "engineer"] as const) {
+    const table = slotType === "driver" ? "driver_templates" : "engineer_templates";
+    const firstSlot = db.prepare(
+      `SELECT refresh_at FROM shard_market_slots WHERE slot_type = ? AND slot_index = 0`
+    ).get(slotType) as { refresh_at: number } | undefined;
+
+    if (!firstSlot || now >= firstSlot.refresh_at) {
+      const templates = db.prepare(
+        `SELECT id, rarity FROM ${table} WHERE rarity IN ('common','rare','epic','legendary') ORDER BY RANDOM()`
+      ).all() as { id: number; rarity: string }[];
+
+      const used = new Set<number>();
+      const picked: typeof templates = [];
+      for (const t of templates) {
+        if (picked.length >= SHARD_MARKET_SLOTS) break;
+        if (!used.has(t.id)) { picked.push(t); used.add(t.id); }
+      }
+
+      for (let i = 0; i < SHARD_MARKET_SLOTS; i++) {
+        const t = picked[i];
+        if (!t) continue;
+        db.prepare(
+          `INSERT INTO shard_market_slots (slot_type, slot_index, template_id, rarity, price_shards, refresh_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(slot_type, slot_index) DO UPDATE SET
+             template_id = excluded.template_id,
+             rarity = excluded.rarity,
+             price_shards = excluded.price_shards,
+             refresh_at = excluded.refresh_at`
+        ).run(slotType, i, t.id, t.rarity, SHARD_PRICES[t.rarity] ?? 25, now + SHARD_MARKET_REFRESH);
+      }
+    }
+  }
+
+  // --- Fetch shard market slots ---
+  const shardDriverSlots = db.prepare(`
+    SELECT sms.slot_type, sms.slot_index, sms.template_id, sms.rarity, sms.price_shards, sms.refresh_at,
+           dt.name, dt.nationality, dt.art, dt.bio,
+           dt.base_speed, dt.base_skill, dt.base_stamina, dt.base_aggression,
+           CASE WHEN d.id IS NOT NULL THEN 1 ELSE 0 END as already_owned
+    FROM shard_market_slots sms
+    JOIN driver_templates dt ON dt.id = sms.template_id
+    LEFT JOIN drivers d ON d.user_id = ? AND d.template_id = sms.template_id
+    WHERE sms.slot_type = 'driver'
+    ORDER BY sms.slot_index
+  `).all(session.id) as ShardMarketSlot[];
+
+  const shardEngineerSlots = db.prepare(`
+    SELECT sms.slot_type, sms.slot_index, sms.template_id, sms.rarity, sms.price_shards, sms.refresh_at,
+           et.name, et.nationality, et.art, et.bio,
+           et.base_craft_speed, et.base_quality_bonus, et.base_race_bonus,
+           CASE WHEN e.id IS NOT NULL THEN 1 ELSE 0 END as already_owned
+    FROM shard_market_slots sms
+    JOIN engineer_templates et ON et.id = sms.template_id
+    LEFT JOIN engineers e ON e.user_id = ? AND e.template_id = sms.template_id
+    WHERE sms.slot_type = 'engineer'
+    ORDER BY sms.slot_index
+  `).all(session.id) as ShardMarketSlot[];
+
+  const shardRefreshAt = shardDriverSlots[0]?.refresh_at ?? now + SHARD_MARKET_REFRESH;
 
   // Pity counts
   const driverPity = db.prepare(`SELECT pity_count FROM gacha_pity WHERE user_id = ? AND banner = 'driver'`).get(session.id) as { pity_count: number } | undefined;
@@ -277,10 +367,12 @@ export default async function MarketPage() {
         engineerTemplates,
         credits: user.credits,
         xgear: user.xgear,
+        recruitShards: user.recruit_shards ?? 0,
         partNextRefresh,
         matNextRefresh,
         serverNow: now,
         pity: { driver: driverPity?.pity_count ?? 0, engineer: engineerPity?.pity_count ?? 0 },
+        shardMarket: { driverSlots: shardDriverSlots, engineerSlots: shardEngineerSlots, refreshAt: shardRefreshAt },
       }}
     />
   );

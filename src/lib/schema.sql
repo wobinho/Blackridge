@@ -17,8 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
   brand_name  TEXT    NOT NULL DEFAULT 'Unknown Brand',
   brand_logo  TEXT,
   prestige    INTEGER NOT NULL DEFAULT 0,
-  credits     INTEGER NOT NULL DEFAULT 5000,
-  xgear       INTEGER NOT NULL DEFAULT 0,
+  credits          INTEGER NOT NULL DEFAULT 5000,
+  xgear            INTEGER NOT NULL DEFAULT 0,
+  recruit_shards   INTEGER NOT NULL DEFAULT 0,
   reputation  INTEGER NOT NULL DEFAULT 0,
   level       INTEGER NOT NULL DEFAULT 1,
   created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -421,6 +422,21 @@ CREATE TABLE IF NOT EXISTS market_part_listings (
 );
 
 -- ============================================================
+-- SHARD MARKET SLOTS (4 drivers + 4 engineers, resets daily)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS shard_market_slots (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  slot_type     TEXT    NOT NULL CHECK (slot_type IN ('driver','engineer')),
+  slot_index    INTEGER NOT NULL,  -- 0-3 within each type
+  template_id   INTEGER NOT NULL,
+  rarity        TEXT    NOT NULL CHECK (rarity IN ('common','rare','epic','legendary')),
+  price_shards  INTEGER NOT NULL,
+  refresh_at    INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(slot_type, slot_index)
+);
+
+-- ============================================================
 -- GACHA: PITY TRACKING
 -- ============================================================
 
@@ -476,6 +492,7 @@ CREATE INDEX IF NOT EXISTS idx_market_active       ON market_listings(status);
 CREATE INDEX IF NOT EXISTS idx_leaderboard_cat     ON leaderboard_snapshots(category, score DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_user       ON activity_log(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_user       ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_shard_market        ON shard_market_slots(slot_type, slot_index);
 CREATE INDEX IF NOT EXISTS idx_engineers_user      ON engineers(user_id);
 CREATE INDEX IF NOT EXISTS idx_inv_parts_user      ON inventory_parts(user_id);
 CREATE INDEX IF NOT EXISTS idx_blueprints_user     ON user_blueprints(user_id);

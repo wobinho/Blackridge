@@ -12,6 +12,16 @@ const ENGINEER_POOL_WEIGHTS = { common: 60, rare: 30, epic: 9, legendary: 1 };
 // Pity system: after 20 non-epic+ rolls, next is guaranteed epic or better
 const PITY_THRESHOLD = 20;
 
+// Shards awarded for duplicate pulls
+const SHARD_VALUES: Record<string, number> = {
+  common: 5,
+  rare: 10,
+  epic: 20,
+  legendary: 50,
+  mythical: 100,
+  event: 100,
+};
+
 type Rarity = "common" | "rare" | "epic" | "legendary";
 
 function weightedRoll(weights: Record<Rarity, number>, pityCount: number): Rarity {
@@ -77,8 +87,11 @@ export async function POST(req: NextRequest) {
     if (byRarity[t.rarity]) byRarity[t.rarity].push(t);
   }
 
+  const ownedTable = isDriverBanner ? "drivers" : "engineers";
+
   // Generate 10 results
-  const results: Array<{ template_id: number; name: string; rarity: Rarity; is_new: boolean }> = [];
+  const results: Array<{ template_id: number; name: string; rarity: Rarity; is_new: boolean; shards_awarded: number }> = [];
+  let totalShardsFromDuplicates = 0;
 
   for (let i = 0; i < 10; i++) {
     const rarity = weightedRoll(weights, pityCount);
@@ -93,25 +106,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already has this character
-    const ownedTable = isDriverBanner ? "drivers" : "engineers";
     const owned = db.prepare(
       `SELECT id FROM ${ownedTable} WHERE user_id = ? AND template_id = ?`
     ).get(session.id, pick.id);
 
-    results.push({ template_id: pick.id, name: pick.name, rarity, is_new: !owned });
+    const isNew = !owned;
+    const shardsAwarded = isNew ? 0 : (SHARD_VALUES[rarity] ?? 5);
+    if (!isNew) totalShardsFromDuplicates += shardsAwarded;
+
+    results.push({ template_id: pick.id, name: pick.name, rarity, is_new: isNew, shards_awarded: shardsAwarded });
   }
 
-  // Deduct xgear
+  // Deduct xgear, award any duplicate shards
   db.prepare(`UPDATE users SET xgear = xgear - ? WHERE id = ?`).run(ROLL_COST_XGEAR, session.id);
+  if (totalShardsFromDuplicates > 0) {
+    db.prepare(`UPDATE users SET recruit_shards = recruit_shards + ? WHERE id = ?`).run(totalShardsFromDuplicates, session.id);
+  }
 
   // Update pity
   db.prepare(`UPDATE gacha_pity SET pity_count = ? WHERE user_id = ? AND banner = ?`).run(pityCount, session.id, banner);
 
   db.prepare(
     `INSERT INTO activity_log (user_id, type, message, data) VALUES (?, 'gacha_roll', ?, ?)`
-  ).run(session.id, `Rolled ${banner} banner`, JSON.stringify({ banner, cost: ROLL_COST_XGEAR }));
+  ).run(session.id, `Rolled ${banner} banner`, JSON.stringify({ banner, cost: ROLL_COST_XGEAR, shards_earned: totalShardsFromDuplicates }));
 
-  return NextResponse.json({ success: true, results, roll_cost: ROLL_COST_XGEAR });
+  return NextResponse.json({ success: true, results, roll_cost: ROLL_COST_XGEAR, shards_earned: totalShardsFromDuplicates });
 }
 
 export async function PUT(req: NextRequest) {
@@ -137,6 +156,17 @@ export async function PUT(req: NextRequest) {
   const template = db.prepare(`SELECT * FROM ${templateTable} WHERE id = ?`).get(template_id) as Record<string, unknown> | undefined;
   if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
+  // Check if already owned — convert to shards instead of blocking
+  const existing = db.prepare(`SELECT id FROM ${instanceTable} WHERE user_id = ? AND template_id = ?`).get(session.id, template_id);
+  if (existing) {
+    const shards = SHARD_VALUES[(template.rarity as string) ?? "common"] ?? 5;
+    db.prepare(`UPDATE users SET recruit_shards = recruit_shards + ? WHERE id = ?`).run(shards, session.id);
+    db.prepare(
+      `INSERT INTO activity_log (user_id, type, message, data) VALUES (?, 'recruit_shard', ?, ?)`
+    ).run(session.id, `Duplicate ${template.name as string} → ${shards} shards`, JSON.stringify({ banner, template_id, shards }));
+    return NextResponse.json({ success: true, duplicate: true, shards_awarded: shards });
+  }
+
   // Check cap
   const upgrades = db.prepare(`SELECT ${capField} FROM workshop_upgrades WHERE user_id = ?`).get(session.id) as Record<string, number> | undefined;
   const cap = upgrades?.[capField] ?? (isDriverBanner ? 5 : 3);
@@ -145,10 +175,6 @@ export async function PUT(req: NextRequest) {
   if (currentCount >= cap) {
     return NextResponse.json({ error: `${isDriverBanner ? "Driver" : "Engineer"} roster is full`, cap, current: currentCount }, { status: 400 });
   }
-
-  // Check already owned
-  const existing = db.prepare(`SELECT id FROM ${instanceTable} WHERE user_id = ? AND template_id = ?`).get(session.id, template_id);
-  if (existing) return NextResponse.json({ error: "Already recruited", already_owned: true }, { status: 409 });
 
   // Insert instance
   if (isDriverBanner) {

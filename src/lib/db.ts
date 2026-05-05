@@ -95,6 +95,8 @@ function applyColumnMigrations(database: import("sql.js").Database): void {
     // workshop upgrades
     { table: "workshop_upgrades",  column: "market_mat_slots",  def: "INTEGER NOT NULL DEFAULT 0" },
     { table: "workshop_upgrades",  column: "market_mat_rarity", def: "INTEGER NOT NULL DEFAULT 0" },
+    // recruit shards currency
+    { table: "users",              column: "recruit_shards",    def: "INTEGER NOT NULL DEFAULT 0" },
     // materials
     { table: "materials",          column: "art",               def: "TEXT" },
     // car_crafting_queue: make engineers optional + add slot tracking

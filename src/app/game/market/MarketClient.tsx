@@ -10,6 +10,7 @@ import type {
   MarketCarListing,
   GachaDriverTemplate,
   GachaEngineerTemplate,
+  ShardMarketSlot,
 } from "./page";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -662,6 +663,7 @@ type GachaResult = {
   name: string;
   rarity: "common" | "rare" | "epic" | "legendary";
   is_new: boolean;
+  shards_awarded: number;
 };
 
 function GachaCard({
@@ -875,7 +877,7 @@ function GachaRevealModal({
                 </button>
               ) : (
                 <button className="gacha-recruit-btn gacha-recruit-owned" disabled>
-                  ALREADY OWNED
+                  OWNED · +{selectedResult.shards_awarded} SHARDS
                 </button>
               )}
             </div>
@@ -1002,18 +1004,183 @@ function BannerCard({
   );
 }
 
+// ─── Shard Icon ──────────────────────────────────────────────────────────────
+
+function ShardIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} style={style} fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M12 2L4 9l8 13 8-13-8-7z" fill="currentColor" fillOpacity="0.2" />
+      <path d="M4 9h16M12 2l4 7M12 2l-4 7M4 9l8 13M20 9l-8 13" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ─── Shard Market Card ────────────────────────────────────────────────────────
+
+function ShardMarketCard({
+  slot,
+  shards,
+  onRecruit,
+}: {
+  slot: ShardMarketSlot;
+  shards: number;
+  onRecruit: (slotType: "driver" | "engineer", slotIndex: number) => Promise<boolean>;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [recruited, setRecruited] = useState(false);
+  const cfg = RARITY_CONFIG[slot.rarity] ?? RARITY_CONFIG.common;
+  const isOwned = slot.already_owned === 1;
+  const isDriver = slot.slot_type === "driver";
+  const canAfford = shards >= slot.price_shards;
+
+  const cssVars = {
+    "--shard-accent": cfg.accent,
+    "--shard-border": cfg.border,
+    "--shard-glow": cfg.glow,
+  } as React.CSSProperties;
+
+  return (
+    <div
+      className={`shard-card${isOwned ? " shard-card--owned" : ""}${recruited ? " shard-card--recruited" : ""}`}
+      style={cssVars}
+    >
+      <div className="shard-card-livery" />
+      <span className="shard-rarity-badge">{cfg.label}</span>
+
+      <div className="shard-card-body">
+        <div>
+          <p className="shard-name">{slot.name}</p>
+          <p className="shard-nationality">{slot.nationality}</p>
+        </div>
+
+        <div className="shard-stats">
+          {isDriver ? (
+            <>
+              <span className="shard-stat">SPD <span className="shard-stat-val">{slot.base_speed ?? "—"}</span></span>
+              <span className="shard-stat">SKL <span className="shard-stat-val">{slot.base_skill ?? "—"}</span></span>
+              <span className="shard-stat">STM <span className="shard-stat-val">{slot.base_stamina ?? "—"}</span></span>
+              <span className="shard-stat">AGG <span className="shard-stat-val">{slot.base_aggression ?? "—"}</span></span>
+            </>
+          ) : (
+            <>
+              <span className="shard-stat">CRF <span className="shard-stat-val">{slot.base_craft_speed ?? "—"}</span></span>
+              <span className="shard-stat">QLT <span className="shard-stat-val">{slot.base_quality_bonus ?? "—"}</span></span>
+              <span className="shard-stat">RCE <span className="shard-stat-val">{slot.base_race_bonus ?? "—"}</span></span>
+            </>
+          )}
+        </div>
+
+        <div className="shard-price-row">
+          <ShardIcon className="shard-price-crystal" />
+          <span className="shard-price-val">{slot.price_shards}</span>
+          <span className="shard-price-unit">SHARDS</span>
+        </div>
+
+        {isOwned ? (
+          <div className="shard-owned-badge">OWNED</div>
+        ) : (
+          <button
+            className={`shard-recruit-btn${loading ? " shard-recruit-btn--loading" : ""}`}
+            disabled={loading || !canAfford || recruited}
+            onClick={async () => {
+              setLoading(true);
+              const ok = await onRecruit(slot.slot_type, slot.slot_index);
+              setLoading(false);
+              if (ok) setRecruited(true);
+            }}
+          >
+            {loading ? "···" : recruited ? "RECRUITED" : canAfford ? "RECRUIT" : "NO SHARDS"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Shard Market ─────────────────────────────────────────────────────────────
+
+function ShardMarket({
+  shards,
+  driverSlots,
+  engineerSlots,
+  refreshAt,
+  onRecruit,
+}: {
+  shards: number;
+  driverSlots: ShardMarketSlot[];
+  engineerSlots: ShardMarketSlot[];
+  refreshAt: number;
+  onRecruit: (slotType: "driver" | "engineer", slotIndex: number) => Promise<boolean>;
+}) {
+  return (
+    <div className="shard-market-section">
+      <div className="shard-market-header">
+        <div className="shard-market-title-block">
+          <ShardIcon style={{ width: 16, height: 16, color: "#8b5cf6" }} />
+          <span style={{ fontFamily: "var(--font-display)", fontSize: "clamp(16px,3vw,22px)", letterSpacing: "0.06em", color: "white" }}>
+            SHARD MARKET
+          </span>
+        </div>
+        <div className="shard-balance-pill">
+          <ShardIcon className="shard-balance-icon" />
+          <span className="shard-balance-val">{shards.toLocaleString()}</span>
+          <span className="shard-balance-label">SHARDS</span>
+        </div>
+      </div>
+
+      <div className="shard-refresh-row">
+        <div className="shard-refresh-dot" />
+        <span className="shard-refresh-label">Resets in</span>
+        <span className="shard-refresh-timer"><RefreshCountdown refreshAt={refreshAt} /></span>
+      </div>
+
+      <div className="shard-market-divider">
+        <span className="shard-market-divider-label">Driver Shard Market</span>
+      </div>
+      <div className="shard-grid">
+        {driverSlots.map((slot) => (
+          <ShardMarketCard key={`d-${slot.slot_index}`} slot={slot} shards={shards} onRecruit={onRecruit} />
+        ))}
+        {driverSlots.length === 0 && (
+          <div className="shard-empty">No driver slots available</div>
+        )}
+      </div>
+
+      <div className="shard-market-divider" style={{ marginTop: 20 }}>
+        <span className="shard-market-divider-label">Engineer Shard Market</span>
+      </div>
+      <div className="shard-grid">
+        {engineerSlots.map((slot) => (
+          <ShardMarketCard key={`e-${slot.slot_index}`} slot={slot} shards={shards} onRecruit={onRecruit} />
+        ))}
+        {engineerSlots.length === 0 && (
+          <div className="shard-empty">No engineer slots available</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Recruit Tab ──────────────────────────────────────────────────────────────
+
 function RecruitTab({
   driverTemplates,
   engineerTemplates,
   xgear,
+  recruitShards,
   pity,
+  shardMarket,
   onRoll,
+  onShardRecruit,
 }: {
   driverTemplates: GachaDriverTemplate[];
   engineerTemplates: GachaEngineerTemplate[];
   xgear: number;
+  recruitShards: number;
   pity: { driver: number; engineer: number };
+  shardMarket: { driverSlots: ShardMarketSlot[]; engineerSlots: ShardMarketSlot[]; refreshAt: number };
   onRoll: (banner: "driver" | "engineer") => Promise<GachaResult[] | null>;
+  onShardRecruit: (slotType: "driver" | "engineer", slotIndex: number) => Promise<boolean>;
 }) {
   const [rolling, setRolling] = useState<"driver" | "engineer" | null>(null);
   const [revealData, setRevealData] = useState<{ banner: "driver" | "engineer"; results: GachaResult[] } | null>(null);
@@ -1040,7 +1207,11 @@ function RecruitTab({
         show(data.error ?? "Recruitment failed", "err");
         return;
       }
-      show(`${data.recruited} recruited!`, "ok");
+      if (data.duplicate) {
+        show(`Duplicate! +${data.shards_awarded} recruit shards`, "ok");
+      } else {
+        show(`${data.recruited} recruited!`, "ok");
+      }
       setRevealData(null);
       router.refresh();
     } catch {
@@ -1061,12 +1232,19 @@ function RecruitTab({
           <p className="mkt-section-tag">Premium Recruitment</p>
           <h2 className="mkt-section-title">RECRUIT</h2>
         </div>
-        <div className="gacha-xgear-display">
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="#c9a84c" strokeWidth="1.5">
-            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" fill="#c9a84c44" />
-          </svg>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: "20px", letterSpacing: "0.06em", color: "#c9a84c" }}>{xgear.toLocaleString()}</span>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "#c9a84c88", letterSpacing: "0.08em" }}>XGEAR</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <div className="gacha-xgear-display">
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="#c9a84c" strokeWidth="1.5">
+              <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" fill="#c9a84c44" />
+            </svg>
+            <span style={{ fontFamily: "var(--font-display)", fontSize: "20px", letterSpacing: "0.06em", color: "#c9a84c" }}>{xgear.toLocaleString()}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "#c9a84c88", letterSpacing: "0.08em" }}>XGEAR</span>
+          </div>
+          <div className="gacha-xgear-display" style={{ gap: 5 }}>
+            <ShardIcon style={{ width: 14, height: 14, color: "#8b5cf6" }} />
+            <span style={{ fontFamily: "var(--font-display)", fontSize: "16px", letterSpacing: "0.06em", color: "#a78bfa" }}>{recruitShards.toLocaleString()}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "#8b5cf688", letterSpacing: "0.08em" }}>SHARDS</span>
+          </div>
         </div>
       </div>
 
@@ -1102,6 +1280,14 @@ function RecruitTab({
           })}
         </div>
       </div>
+
+      <ShardMarket
+        shards={recruitShards}
+        driverSlots={shardMarket.driverSlots}
+        engineerSlots={shardMarket.engineerSlots}
+        refreshAt={shardMarket.refreshAt}
+        onRecruit={onShardRecruit}
+      />
 
       {revealData && (
         <GachaRevealModal
@@ -1173,9 +1359,25 @@ export default function MarketClient({ data }: { data: MarketPageData }) {
       });
       const json = await res.json();
       if (!res.ok) { show(json.error ?? "Roll failed", "err"); return null; }
+      if (json.shards_earned > 0) show(`+${json.shards_earned} recruit shards from duplicates!`, "ok");
       router.refresh();
       return json.results as GachaResult[];
     } catch { show("Network error", "err"); return null; }
+  };
+
+  const handleShardRecruit = async (slotType: "driver" | "engineer", slotIndex: number): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/market/shard-market", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slot_type: slotType, slot_index: slotIndex }),
+      });
+      const json = await res.json();
+      if (!res.ok) { show(json.error ?? "Recruitment failed", "err"); return false; }
+      show(`${json.recruited} recruited for ${json.cost} shards!`, "ok");
+      router.refresh();
+      return true;
+    } catch { show("Network error", "err"); return false; }
   };
 
   return (
@@ -1254,8 +1456,11 @@ export default function MarketClient({ data }: { data: MarketPageData }) {
               driverTemplates={data.driverTemplates}
               engineerTemplates={data.engineerTemplates}
               xgear={data.xgear}
+              recruitShards={data.recruitShards}
               pity={data.pity}
+              shardMarket={data.shardMarket}
               onRoll={handleGachaRoll}
+              onShardRecruit={handleShardRecruit}
             />
           )}
         </div>
@@ -2500,5 +2705,289 @@ const MARKET_STYLES = `
   @keyframes mktCardIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Shard Market ── */
+  .shard-market-section {
+    margin-top: 32px;
+    padding-top: 28px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .shard-market-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .shard-market-title-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .shard-market-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .shard-market-divider::before,
+  .shard-market-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+  .shard-market-divider-label {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.18em;
+    color: rgba(255,255,255,0.2);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .shard-balance-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px 6px 8px;
+    border: 1px solid rgba(139,92,246,0.3);
+    background: rgba(139,92,246,0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .shard-balance-pill::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: #8b5cf6;
+  }
+  .shard-balance-icon {
+    width: 14px;
+    height: 14px;
+    color: #8b5cf6;
+    flex-shrink: 0;
+  }
+  .shard-balance-val {
+    font-family: var(--font-display);
+    font-size: 18px;
+    letter-spacing: 0.04em;
+    color: #a78bfa;
+    line-height: 1;
+  }
+  .shard-balance-label {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(167,139,250,0.5);
+    letter-spacing: 0.12em;
+  }
+  .shard-refresh-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .shard-refresh-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.2);
+    text-transform: uppercase;
+  }
+  .shard-refresh-timer {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.08em;
+  }
+  .shard-refresh-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(139,92,246,0.7);
+    flex-shrink: 0;
+    animation: shardPulse 2s ease-in-out infinite;
+  }
+  @keyframes shardPulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.3); }
+  }
+  .shard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  @media (min-width: 768px) {
+    .shard-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  .shard-card {
+    position: relative;
+    background: #0e0e0e;
+    border: 1px solid var(--shard-border, rgba(255,255,255,0.08));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  }
+  .shard-card:not(.shard-card--owned):hover {
+    border-color: var(--shard-accent, rgba(255,255,255,0.2));
+    box-shadow: 0 0 16px var(--shard-glow, rgba(255,255,255,0.04));
+    transform: translateY(-1px);
+  }
+  .shard-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(255,255,255,0.008) 3px,
+      rgba(255,255,255,0.008) 4px
+    );
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .shard-card:not(.shard-card--owned):hover::after { opacity: 1; }
+  .shard-card-livery {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--shard-accent, #888);
+    -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+    z-index: 1;
+  }
+  .shard-rarity-badge {
+    position: absolute;
+    top: 0; right: 0;
+    padding: 2px 6px;
+    font-family: var(--font-mono);
+    font-size: 7px;
+    letter-spacing: 0.12em;
+    color: var(--shard-accent, #888);
+    background: rgba(0,0,0,0.7);
+    border-bottom-left-radius: 2px;
+    border-left: 1px solid var(--shard-border, rgba(255,255,255,0.1));
+    border-bottom: 1px solid var(--shard-border, rgba(255,255,255,0.1));
+  }
+  .shard-card-body {
+    padding: 10px 10px 10px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+  }
+  .shard-name {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: white;
+    letter-spacing: 0.03em;
+    line-height: 1.2;
+    padding-right: 36px;
+    font-weight: 600;
+  }
+  .shard-nationality {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .shard-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 6px;
+  }
+  .shard-stat {
+    font-family: var(--font-mono);
+    font-size: 7.5px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.05em;
+  }
+  .shard-stat-val {
+    color: rgba(255,255,255,0.65);
+  }
+  .shard-price-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: auto;
+  }
+  .shard-price-crystal {
+    width: 10px;
+    height: 10px;
+    color: #8b5cf6;
+    flex-shrink: 0;
+  }
+  .shard-price-val {
+    font-family: var(--font-display);
+    font-size: 15px;
+    color: #a78bfa;
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+  .shard-price-unit {
+    font-family: var(--font-mono);
+    font-size: 7px;
+    color: rgba(167,139,250,0.4);
+    letter-spacing: 0.1em;
+    align-self: flex-end;
+    padding-bottom: 1px;
+  }
+  .shard-recruit-btn {
+    width: 100%;
+    padding: 7px 8px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: 1px solid var(--shard-accent, rgba(255,255,255,0.15));
+    background: transparent;
+    color: var(--shard-accent, rgba(255,255,255,0.5));
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 4px;
+  }
+  .shard-recruit-btn:hover:not(:disabled) {
+    background: var(--shard-glow, rgba(255,255,255,0.06));
+    color: white;
+    border-color: var(--shard-accent);
+  }
+  .shard-recruit-btn:disabled { opacity: 0.3; cursor: default; }
+  .shard-recruit-btn--loading { opacity: 0.6; cursor: wait; }
+  .shard-card--owned { opacity: 0.45; }
+  .shard-owned-badge {
+    width: 100%;
+    padding: 7px 8px;
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    text-align: center;
+    color: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
+  }
+  @keyframes shardSuccess {
+    0%   { box-shadow: 0 0 0 0 rgba(139,92,246,0.8); }
+    50%  { box-shadow: 0 0 0 8px rgba(139,92,246,0); }
+    100% { box-shadow: 0 0 0 0 rgba(139,92,246,0); }
+  }
+  .shard-card--recruited {
+    animation: shardSuccess 0.6s ease-out;
+  }
+  .shard-empty {
+    grid-column: 1 / -1;
+    padding: 24px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 0.08em;
+    border: 1px dashed rgba(255,255,255,0.06);
   }
 `;

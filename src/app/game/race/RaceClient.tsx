@@ -222,13 +222,11 @@ function RaceStandingsModal({
   const seededRand = useCallback(makeSeededRand(race.id * 13337), [race.id]);
 
   const [standings, setStandings] = useState<StandingEntry[]>(() => {
-    // Player base: median NPC performance as placeholder until claim reveals real result
-    const npcPerfs = npcs.map(npcPerformance);
-    const medianPerf = npcPerfs.length > 0
-      ? npcPerfs.sort((a, b) => a - b)[Math.floor(npcPerfs.length / 2)]
-      : 400;
+    const driverBoost = (race.driver_speed + race.driver_skill) * 0.12;
+    const engBoost = race.engineer_bonus * 0.05;
+    const playerRawScore = race.car_performance + driverBoost + engBoost;
     const entries: StandingEntry[] = [
-      { label: `${race.car_name} · ${race.driver_name}`, isPlayer: true, score: medianPerf, position: 0 },
+      { label: `${race.car_name} · ${race.driver_name}`, isPlayer: true, score: playerRawScore, position: 0 },
       ...npcs.map((n) => ({
         label: n.name,
         isPlayer: false,
@@ -243,34 +241,6 @@ function RaceStandingsModal({
     const sorted = [...entries].sort((a, b) => b.score - a.score);
     return sorted.map((e, i) => ({ ...e, position: i + 1 }));
   }
-
-  // Each tick, apply progress-based jitter to simulate live positions
-  const tickRef = useRef(0);
-  useEffect(() => {
-    const iv = setInterval(() => {
-      tickRef.current += 1;
-      const tick = tickRef.current;
-      setStandings((prev) => {
-        const updated = prev.map((e, i) => {
-          if (e.isPlayer) {
-            const jitter = (seededRand(tick * 7 + i) * 2 - 1) * e.score * 0.08 * (1 - progress * 0.5);
-            return { ...e, score: e.score + jitter };
-          }
-          const jitter = (seededRand(tick * 3 + i * 11) * 2 - 1) * e.score * 0.05;
-          return { ...e, score: e.score + jitter * 0.1 };
-        });
-        return rank(updated);
-      });
-    }, 2000);
-    return () => clearInterval(iv);
-  }, [progress]);
-
-  const secsLeft = Math.max(0, race.completes_at - serverNow);
-  const [displaySecs, setDisplaySecs] = useState(secsLeft);
-  useEffect(() => {
-    const iv = setInterval(() => setDisplaySecs((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(iv);
-  }, []);
 
   const progressPct = Math.round(progress * 100);
   const lap = Math.ceil(progress * (race.field_size > 6 ? 5 : 3));
@@ -290,7 +260,6 @@ function RaceStandingsModal({
             </div>
           </div>
           <div className="standings-header-right">
-            <div className="standings-countdown">{formatCountdown(displaySecs)}</div>
             <button className="standings-close" onClick={onClose}>✕</button>
           </div>
         </div>

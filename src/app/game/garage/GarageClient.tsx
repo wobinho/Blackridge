@@ -42,8 +42,6 @@ function getPerformance(car: GarageCar): number {
   return ALL_STAT_KEYS.reduce((sum, key) => sum + ((car[key] as number) || 0), 0);
 }
 
-// Max possible performance for a bar — rough reference ceiling
-const PERF_MAX = 800;
 
 // Archetype accent colors
 function archetypeColor(archetype: string): string {
@@ -117,7 +115,6 @@ function CarCard({
   const isRacing = car.status === "racing";
   const isForSale = car.status === "for_sale";
   const perf = getPerformance(car);
-  const perfPct = Math.min((perf / PERF_MAX) * 100, 100);
   const accent = archetypeColor(car.archetype);
 
   return (
@@ -166,12 +163,6 @@ function CarCard({
         <div className="grg-perf-label-row">
           <span className="grg-perf-label">PERFORMANCE</span>
           <span className="grg-perf-score" style={{ color: accent }}>{perf}</span>
-        </div>
-        <div className="grg-perf-track">
-          <div
-            className="grg-perf-fill"
-            style={{ width: `${perfPct}%`, background: accent }}
-          />
         </div>
       </div>
 
@@ -267,9 +258,6 @@ function DetailModal({
           <div className="grg-detail-perf-inner">
             <span className="grg-detail-perf-label">PERFORMANCE</span>
             <span className="grg-detail-perf-num" style={{ color: accent }}>{perf}</span>
-          </div>
-          <div className="grg-detail-perf-track">
-            <div className="grg-detail-perf-fill" style={{ width: `${Math.min((perf / PERF_MAX) * 100, 100)}%`, background: accent }} />
           </div>
         </div>
 

@@ -42,6 +42,10 @@ export interface ActiveRace {
   engineer_name: string | null;
   npc_field: string;
   field_size: number;
+  car_performance: number;
+  driver_speed: number;
+  driver_skill: number;
+  engineer_bonus: number;
 }
 
 export interface UserDriver {
@@ -136,7 +140,14 @@ export default async function RacePage() {
            c.field_size,
            dt.name as driver_name,
            car.name as car_name,
-           et.name as engineer_name
+           et.name as engineer_name,
+           car.stat_speed + car.stat_acceleration + car.stat_handling + car.stat_stability
+             + car.stat_durability + car.stat_weight + car.stat_braking + car.stat_control
+             + car.stat_shift_speed + car.stat_efficiency + car.stat_grip + car.stat_cornering
+             as car_performance,
+           d.speed as driver_speed,
+           d.skill as driver_skill,
+           COALESCE(e.race_bonus, 0) as engineer_bonus
     FROM races r
     JOIN circuits c ON c.id = r.circuit_id
     JOIN drivers d ON d.id = r.driver_id

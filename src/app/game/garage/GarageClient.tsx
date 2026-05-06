@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { resolveArt } from "@/lib/resolveArt";
 import type { GaragePageData, GarageCar } from "./page";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -81,20 +82,19 @@ function Toast({ toast }: { toast: { msg: string; type: "ok" | "err" } | null })
 // ─── Car Image ───────────────────────────────────────────────────────────────
 
 function CarImage({ art, name, accent }: { art: string | null; name: string; accent: string }) {
-  const src = art
-    ? `/assets/cars/${art}.png`
-    : "/assets/cars/placeholder-4x3.svg";
+  const src = resolveArt(art, "cars");
+  const [imageSrc, setImageSrc] = useState(src);
 
   return (
     <div className="grg-car-img-wrap">
       <Image
-        src={src}
+        src={imageSrc}
         alt={name}
         fill
         sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw"
         className="grg-car-img"
-        onError={(e) => {
-          (e.target as HTMLImageElement).src = "/assets/cars/placeholder-4x3.svg";
+        onError={() => {
+          setImageSrc("/assets/cars/placeholder-4x3.svg");
         }}
       />
       {/* Gradient overlay — bottom fade into card body */}

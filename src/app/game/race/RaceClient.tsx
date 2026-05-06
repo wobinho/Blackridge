@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { resolveArt } from "@/lib/resolveArt";
 import type { RacePageData, RaceCircuit, UserDriver, UserEngineer, UserCar, ActiveRace } from "./page";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -737,7 +738,7 @@ function EntryModal({
                       >
                         <div className="race-car-color-bar" style={{ background: c.color }} />
                         <div className="race-car-portrait">
-                          <img src="/assets/cars/placeholder-4x3.svg" alt={c.name} />
+                          <img src={resolveArt(c.art, "cars")} alt={c.name} />
                           {!available && <div className="race-select-card-busy">{c.status.replace("_", " ").toUpperCase()}</div>}
                         </div>
                         <div className="race-select-card-info">

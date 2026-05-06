@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { resolveArt } from "@/lib/resolveArt";
 import type {
   MarketPageData,
   MarketMaterialSlot,
@@ -442,9 +443,9 @@ function CarListingCard({
   credits: number;
   onBuyClick: (listing: MarketCarListing) => void;
 }) {
+  const [carImgSrc, setCarImgSrc] = useState(resolveArt(listing.art, "cars"));
   const canAfford = credits >= listing.price;
   const winRate = listing.total_races > 0 ? Math.round((listing.total_wins / listing.total_races) * 100) : 0;
-  const carImgSrc = listing.art ? `/assets/cars/${listing.art}.png` : "/assets/cars/placeholder-4x3.svg";
 
   return (
     <div className="mkt-car-card" style={{ animationDelay: `${listing.listing_id * 40}ms` }}>
@@ -456,7 +457,7 @@ function CarListingCard({
           fill
           sizes="(max-width: 640px) 100vw, 50vw"
           className="mkt-car-img"
-          onError={(e) => { (e.target as HTMLImageElement).src = "/assets/cars/placeholder-4x3.svg"; }}
+          onError={() => { setCarImgSrc("/assets/cars/placeholder-4x3.svg"); }}
         />
         <div className="mkt-car-img-overlay" style={{ background: `linear-gradient(to bottom, transparent 40%, rgba(14,14,14,0.85) 80%, #0e0e0e 100%)` }} />
         {/* Color + tier badges on image */}

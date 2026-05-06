@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#141820"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#141414"/>
+      <stop offset="100%" style="stop-color:#0a0a0a"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#sky)"/>
+  <!-- Horizon line -->
+  <rect x="0" y="280" width="800" height="170" fill="url(#road)"/>
+  <!-- Track markings -->
+  <rect x="0" y="275" width="800" height="4" fill="#e8001c" opacity="0.6"/>
+  <rect x="355" y="295" width="90" height="8" rx="2" fill="#ffffff" opacity="0.15"/>
+  <rect x="355" y="325" width="90" height="8" rx="2" fill="#ffffff" opacity="0.15"/>
+  <rect x="355" y="355" width="90" height="8" rx="2" fill="#ffffff" opacity="0.15"/>
+  <!-- Grid lines for depth -->
+  <line x1="400" y1="280" x2="0" y2="450" stroke="#ffffff" stroke-width="0.5" opacity="0.04"/>
+  <line x1="400" y1="280" x2="800" y2="450" stroke="#ffffff" stroke-width="0.5" opacity="0.04"/>
+  <line x1="400" y1="280" x2="100" y2="450" stroke="#ffffff" stroke-width="0.5" opacity="0.04"/>
+  <line x1="400" y1="280" x2="700" y2="450" stroke="#ffffff" stroke-width="0.5" opacity="0.04"/>
+  <!-- Label -->
+  <text x="400" y="170" text-anchor="middle" fill="#222" font-family="monospace" font-size="14" letter-spacing="6">CIRCUIT</text>
+</svg>

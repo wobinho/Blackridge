@@ -1227,7 +1227,7 @@ function BuildCarModal({
   const [activeSlot, setActiveSlot] = useState<CarSlot | null>(null);
   const [selectedEngineer1, setSelectedEngineer1] = useState<EngineerFull | null>(null);
   const [selectedEngineer2, setSelectedEngineer2] = useState<EngineerFull | null>(null);
-  const [carName, setCarName] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
@@ -1271,7 +1271,7 @@ function BuildCarModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           car_template_id: selectedBlueprint.car_template_id,
-          car_name: carName.trim() || selectedBlueprint.name,
+          car_name: selectedBlueprint.name,
           slot_index: slotIndex,
           engineer_id_1: selectedEngineer1?.id ?? null,
           engineer_id_2: selectedEngineer2?.id ?? null,
@@ -1539,19 +1539,6 @@ function BuildCarModal({
         {step === 3 && selectedBlueprint && (
           <>
             <div className="ws-modal-body">
-              {/* Car name input */}
-              <p className="ws-modal-section-label">NAME YOUR CAR</p>
-              <div className="ws-car-name-input-wrap">
-                <input
-                  type="text"
-                  className="ws-car-name-input"
-                  placeholder={selectedBlueprint.name}
-                  value={carName}
-                  maxLength={40}
-                  onChange={(e) => setCarName(e.target.value)}
-                />
-              </div>
-
               {/* Parts summary */}
               <p className="ws-modal-section-label mt-4">PARTS ASSIGNED</p>
               <div className="ws-parts-summary-grid">
@@ -3144,20 +3131,4 @@ const WORKSHOP_STYLES = `
     background: rgba(255,255,255,0.02); gap: 8px;
   }
 
-  /* ── Car Name Input ───────────────────────────── */
-  .ws-car-name-input-wrap {
-    margin-bottom: 4px;
-  }
-  .ws-car-name-input {
-    width: 100%;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 2px;
-    padding: 10px 12px;
-    font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.04em;
-    color: white; outline: none;
-    transition: border-color 0.15s;
-  }
-  .ws-car-name-input:focus { border-color: #c9a84c; }
-  .ws-car-name-input::placeholder { color: var(--color-text-subtle); }
 `;

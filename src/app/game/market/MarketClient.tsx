@@ -11,6 +11,7 @@ import type {
   GachaDriverTemplate,
   GachaEngineerTemplate,
   ShardMarketSlot,
+  RecruitBanner,
 } from "./page";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -443,16 +444,29 @@ function CarListingCard({
 }) {
   const canAfford = credits >= listing.price;
   const winRate = listing.total_races > 0 ? Math.round((listing.total_wins / listing.total_races) * 100) : 0;
+  const carImgSrc = listing.art ? `/assets/cars/${listing.art}.png` : "/assets/cars/placeholder-4x3.svg";
 
   return (
     <div className="mkt-car-card" style={{ animationDelay: `${listing.listing_id * 40}ms` }}>
-      {/* Color swatch header */}
-      <div className="mkt-car-swatch" style={{ background: `linear-gradient(135deg, ${listing.color}33, ${listing.color}11)`, borderBottom: `1px solid ${listing.color}22` }}>
-        <div className="flex items-center gap-2">
-          <div className="mkt-car-color-dot" style={{ background: listing.color, boxShadow: `0 0 8px ${listing.color}66` }} />
-          <span className="mkt-car-model-code">{listing.model_code}</span>
+      {/* 4:3 Car image */}
+      <div className="mkt-car-img-wrap">
+        <Image
+          src={carImgSrc}
+          alt={listing.car_name}
+          fill
+          sizes="(max-width: 640px) 100vw, 50vw"
+          className="mkt-car-img"
+          onError={(e) => { (e.target as HTMLImageElement).src = "/assets/cars/placeholder-4x3.svg"; }}
+        />
+        <div className="mkt-car-img-overlay" style={{ background: `linear-gradient(to bottom, transparent 40%, rgba(14,14,14,0.85) 80%, #0e0e0e 100%)` }} />
+        {/* Color + tier badges on image */}
+        <div className="mkt-car-img-badges">
+          <div className="flex items-center gap-2">
+            <div className="mkt-car-color-dot" style={{ background: listing.color, boxShadow: `0 0 8px ${listing.color}66` }} />
+            <span className="mkt-car-model-code">{listing.model_code}</span>
+          </div>
+          <span className="mkt-car-tier-badge">{listing.archetype.replace("_", " ").toUpperCase()}</span>
         </div>
-        <span className="mkt-car-tier-badge">{listing.archetype.replace("_", " ").toUpperCase()}</span>
       </div>
 
       <div className="mkt-car-body">
@@ -662,6 +676,7 @@ type GachaResult = {
   template_id: number;
   name: string;
   rarity: "common" | "rare" | "epic" | "legendary";
+  art: string | null;
   is_new: boolean;
   shards_awarded: number;
 };
@@ -671,17 +686,24 @@ function GachaCard({
   index,
   isFlipped,
   isSelected,
+  banner,
   onClick,
 }: {
   result: GachaResult | null; // null = face-down
   index: number;
   isFlipped: boolean;
   isSelected: boolean;
+  banner: "driver" | "engineer";
   onClick: () => void;
 }) {
   const cfg = result ? RARITY_CONFIG[result.rarity] : null;
   const isLegendary = result?.rarity === "legendary";
   const isEpic = result?.rarity === "epic";
+  const portraitSrc = result?.art
+    ? `/assets/${banner === "driver" ? "drivers" : "engineers"}/${result.art}.png`
+    : banner === "driver"
+      ? "/assets/drivers/placeholder-3x4.svg"
+      : "/assets/engineers/placeholder-3x4.svg";
 
   return (
     <div
@@ -720,12 +742,12 @@ function GachaCard({
           <div className="gacha-card-portrait">
             <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 80%, ${cfg?.glow ?? "rgba(0,0,0,0)"} 0%, transparent 70%)` }} />
             <Image
-              src="/assets/drivers/placeholder-3x4.svg"
+              src={portraitSrc}
               alt={result?.name ?? ""}
               fill
               className="object-cover object-top"
-              style={{ opacity: 0.3 }}
               sizes="80px"
+              onError={(e) => { (e.target as HTMLImageElement).src = "/assets/drivers/placeholder-3x4.svg"; }}
             />
           </div>
           {/* Bottom info */}
@@ -832,6 +854,7 @@ function GachaRevealModal({
               index={i}
               isFlipped={flipped[i]}
               isSelected={selectedIdx === i}
+              banner={banner}
               onClick={() => handleCardClick(i)}
             />
           ))}
@@ -893,12 +916,14 @@ function GachaRevealModal({
 }
 
 function BannerCard({
+  dbBanner,
   banner,
   pity,
   xgear,
   onRoll,
   loading,
 }: {
+  dbBanner: RecruitBanner | null;
   banner: "driver" | "engineer";
   pity: number;
   xgear: number;
@@ -908,22 +933,48 @@ function BannerCard({
   const canRoll = xgear >= 100;
   const isDriver = banner === "driver";
   const pityPct = (pity / 20) * 100;
-
   const patternColor = isDriver ? "#e8001c" : "#c9a84c";
-  const bgGrad = isDriver
-    ? "radial-gradient(ellipse at 30% 50%, rgba(232,0,28,0.12) 0%, transparent 60%), linear-gradient(135deg, #0a0a0a 0%, #111 100%)"
-    : "radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.1) 0%, transparent 60%), linear-gradient(135deg, #0a0a0a 0%, #111 100%)";
+
+  const bannerImgSrc = dbBanner?.art
+    ? `/assets/banners/${dbBanner.art}.png`
+    : null;
 
   return (
-    <div className="gacha-banner-card" style={{ background: bgGrad }}>
+    <div className="gacha-banner-card">
+      {/* Background image */}
+      {bannerImgSrc && (
+        <Image
+          src={bannerImgSrc}
+          alt={dbBanner?.name ?? "Banner"}
+          fill
+          sizes="(max-width: 768px) 100vw, 50vw"
+          className="gacha-banner-bg-img"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+      )}
+      {/* Gradient overlay on top of background image */}
+      <div
+        className="gacha-banner-bg-overlay"
+        style={{
+          background: isDriver
+            ? "linear-gradient(135deg, rgba(0,0,0,0.82) 0%, rgba(232,0,28,0.12) 50%, rgba(0,0,0,0.75) 100%)"
+            : "linear-gradient(135deg, rgba(0,0,0,0.82) 0%, rgba(201,168,76,0.1) 50%, rgba(0,0,0,0.75) 100%)",
+        }}
+      />
+
       {/* Decorative grid overlay */}
       <div className="gacha-banner-grid" style={{ borderColor: patternColor + "08" }} />
 
-      {/* Diagonal accent line */}
-      <div className="gacha-banner-diag" style={{ background: `linear-gradient(90deg, transparent, ${patternColor}18, transparent)` }} />
+      {/* Event badge */}
+      {dbBanner?.is_event === 1 && (
+        <div className="gacha-event-badge">
+          <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1l1.8 4.1L14 5.6l-3 3 .7 4.2L8 10.8l-3.7 2 .7-4.2-3-3 4.2-.5z" fill="currentColor" fillOpacity="0.4" /></svg>
+          EVENT
+        </div>
+      )}
 
       <div className="gacha-banner-body">
-        {/* Left: art placeholder */}
+        {/* Left: art / icon area */}
         <div className="gacha-banner-art" style={{ borderColor: patternColor + "22" }}>
           <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 50% 60%, ${patternColor}18, transparent 70%)` }} />
           <div className="gacha-banner-art-icon">
@@ -943,10 +994,12 @@ function BannerCard({
         <div className="gacha-banner-info">
           <div className="mb-3">
             <p style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: patternColor + "aa", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-              {isDriver ? "Racing Division" : "Workshop Division"}
+              {dbBanner?.description
+                ? dbBanner.description.slice(0, 36) + (dbBanner.description.length > 36 ? "…" : "")
+                : (isDriver ? "Racing Division" : "Workshop Division")}
             </p>
             <h3 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(20px, 4vw, 28px)", letterSpacing: "0.06em", color: "white", lineHeight: 1 }}>
-              {isDriver ? "DRIVER" : "ENGINEER"} BANNER
+              {dbBanner?.name ?? (isDriver ? "DRIVER BANNER" : "ENGINEER BANNER")}
             </h3>
           </div>
 
@@ -1039,13 +1092,31 @@ function ShardMarketCard({
     "--shard-glow": cfg.glow,
   } as React.CSSProperties;
 
+  const portraitSrc = slot.art
+    ? `/assets/${isDriver ? "drivers" : "engineers"}/${slot.art}.png`
+    : isDriver
+      ? "/assets/drivers/placeholder-3x4.svg"
+      : "/assets/engineers/placeholder-3x4.svg";
+
   return (
     <div
       className={`shard-card${isOwned ? " shard-card--owned" : ""}${recruited ? " shard-card--recruited" : ""}`}
       style={cssVars}
     >
-      <div className="shard-card-livery" />
-      <span className="shard-rarity-badge">{cfg.label}</span>
+      {/* Portrait image — 3:4 ratio */}
+      <div className="shard-card-portrait-wrap">
+        <Image
+          src={portraitSrc}
+          alt={slot.name}
+          fill
+          sizes="120px"
+          className="shard-card-portrait-img"
+          onError={(e) => { (e.target as HTMLImageElement).src = "/assets/drivers/placeholder-3x4.svg"; }}
+        />
+        <div className="shard-card-portrait-fade" style={{ background: `linear-gradient(to bottom, transparent 40%, rgba(10,10,10,0.9) 80%, #0a0a0a 100%)` }} />
+        <div className="shard-card-livery" />
+        <span className="shard-rarity-badge">{cfg.label}</span>
+      </div>
 
       <div className="shard-card-body">
         <div>
@@ -1170,6 +1241,7 @@ function RecruitTab({
   recruitShards,
   pity,
   shardMarket,
+  recruitBanners,
   onRoll,
   onShardRecruit,
 }: {
@@ -1179,6 +1251,7 @@ function RecruitTab({
   recruitShards: number;
   pity: { driver: number; engineer: number };
   shardMarket: { driverSlots: ShardMarketSlot[]; engineerSlots: ShardMarketSlot[]; refreshAt: number };
+  recruitBanners: RecruitBanner[];
   onRoll: (banner: "driver" | "engineer") => Promise<GachaResult[] | null>;
   onShardRecruit: (slotType: "driver" | "engineer", slotIndex: number) => Promise<boolean>;
 }) {
@@ -1249,8 +1322,22 @@ function RecruitTab({
       </div>
 
       <div className="gacha-banners-grid">
-        <BannerCard banner="driver" pity={pity.driver} xgear={xgear} onRoll={() => handleRoll("driver")} loading={rolling === "driver"} />
-        <BannerCard banner="engineer" pity={pity.engineer} xgear={xgear} onRoll={() => handleRoll("engineer")} loading={rolling === "engineer"} />
+        <BannerCard
+          dbBanner={recruitBanners.find((b) => b.banner_type === "driver") ?? null}
+          banner="driver"
+          pity={pity.driver}
+          xgear={xgear}
+          onRoll={() => handleRoll("driver")}
+          loading={rolling === "driver"}
+        />
+        <BannerCard
+          dbBanner={recruitBanners.find((b) => b.banner_type === "engineer") ?? null}
+          banner="engineer"
+          pity={pity.engineer}
+          xgear={xgear}
+          onRoll={() => handleRoll("engineer")}
+          loading={rolling === "engineer"}
+        />
       </div>
 
       {/* Pool preview */}
@@ -1458,6 +1545,7 @@ export default function MarketClient({ data }: { data: MarketPageData }) {
               recruitShards={data.recruitShards}
               pity={data.pity}
               shardMarket={data.shardMarket}
+              recruitBanners={data.recruitBanners}
               onRoll={handleGachaRoll}
               onShardRecruit={handleShardRecruit}
             />
@@ -2108,6 +2196,36 @@ const MARKET_STYLES = `
     transition: border-color 0.2s;
   }
   .mkt-car-card:hover { border-color: rgba(255,255,255,0.15); }
+  /* Car listing image */
+  .mkt-car-img-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: #0a0a0a;
+  }
+  .mkt-car-img {
+    object-fit: cover;
+    object-position: center;
+    transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  }
+  .mkt-car-card:hover .mkt-car-img { transform: scale(1.04); }
+  .mkt-car-img-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .mkt-car-img-badges {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 2;
+  }
   .mkt-car-swatch {
     display: flex;
     align-items: center;
@@ -2342,6 +2460,38 @@ const MARKET_STYLES = `
     border: 1px solid rgba(255,255,255,0.08);
     overflow: hidden;
     padding: 0;
+    background: #0a0a0a;
+  }
+  /* Banner background image */
+  .gacha-banner-bg-img {
+    object-fit: cover;
+    object-position: center;
+    transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+  }
+  .gacha-banner-card:hover .gacha-banner-bg-img { transform: scale(1.05); }
+  .gacha-banner-bg-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+  /* Event badge */
+  .gacha-event-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: rgba(232,0,28,0.25);
+    border: 1px solid rgba(232,0,28,0.6);
+    color: #e8001c;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    backdrop-filter: blur(8px);
   }
   .gacha-banner-grid {
     position: absolute;
@@ -2349,6 +2499,7 @@ const MARKET_STYLES = `
     background-image: repeating-linear-gradient(0deg, var(--border-color, rgba(255,255,255,0.03)) 0, var(--border-color, rgba(255,255,255,0.03)) 1px, transparent 1px, transparent 32px),
                       repeating-linear-gradient(90deg, var(--border-color, rgba(255,255,255,0.03)) 0, var(--border-color, rgba(255,255,255,0.03)) 1px, transparent 1px, transparent 32px);
     pointer-events: none;
+    z-index: 2;
   }
   .gacha-banner-diag {
     position: absolute;
@@ -2357,13 +2508,14 @@ const MARKET_STYLES = `
     width: 60%;
     transform: skewX(-12deg);
     pointer-events: none;
+    z-index: 2;
   }
   .gacha-banner-body {
     position: relative;
     display: flex;
     gap: 16px;
     padding: 16px;
-    z-index: 1;
+    z-index: 3;
   }
   .gacha-banner-art {
     position: relative;
@@ -2851,6 +3003,24 @@ const MARKET_STYLES = `
     transition: opacity 0.2s;
   }
   .shard-card:not(.shard-card--owned):hover::after { opacity: 1; }
+  /* Shard card portrait */
+  .shard-card-portrait-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+    background: #080808;
+    flex-shrink: 0;
+  }
+  .shard-card-portrait-img {
+    object-fit: cover;
+    object-position: center top;
+  }
+  .shard-card-portrait-fade {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
   .shard-card-livery {
     position: absolute;
     left: 0; top: 0; bottom: 0;
@@ -2869,9 +3039,11 @@ const MARKET_STYLES = `
     letter-spacing: 0.12em;
     color: var(--shard-accent, #888);
     background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
     border-bottom-left-radius: 2px;
     border-left: 1px solid var(--shard-border, rgba(255,255,255,0.1));
     border-bottom: 1px solid var(--shard-border, rgba(255,255,255,0.1));
+    z-index: 3;
   }
   .shard-card-body {
     padding: 10px 10px 10px 16px;

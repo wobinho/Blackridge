@@ -119,6 +119,17 @@ export interface ShardMarketSlot {
   base_race_bonus?: number;
 }
 
+export interface RecruitBanner {
+  id: number;
+  name: string;
+  art: string | null;
+  banner_type: "driver" | "engineer" | "mixed";
+  description: string | null;
+  is_event: number;
+  active: number;
+  sort_order: number;
+}
+
 export interface MarketPageData {
   materialSlots: MarketMaterialSlot[];
   partListings: MarketPartListing[];
@@ -133,6 +144,7 @@ export interface MarketPageData {
   serverNow: number;
   pity: { driver: number; engineer: number };
   shardMarket: { driverSlots: ShardMarketSlot[]; engineerSlots: ShardMarketSlot[]; refreshAt: number };
+  recruitBanners: RecruitBanner[];
 }
 
 // Material IDs match seed order: 1=Steel,2=Aluminum,3=Carbon,4=Titanium,5=Polymer,6=Hardware,7=Electronics,8=Compounds,9=Fluids,10=Trims
@@ -357,6 +369,11 @@ export default async function MarketPage() {
   const matNextRefresh = materialSlots[0]?.refresh_at ?? now + MAT_REFRESH;
   const partNextRefresh = partListings[0]?.expires_at ?? now + PART_REFRESH;
 
+  const recruitBanners = db.prepare(
+    `SELECT id, name, art, banner_type, description, is_event, active, sort_order
+     FROM recruit_banners WHERE active = 1 ORDER BY is_event DESC, sort_order ASC`
+  ).all() as RecruitBanner[];
+
   return (
     <MarketClient
       data={{
@@ -373,6 +390,7 @@ export default async function MarketPage() {
         serverNow: now,
         pity: { driver: driverPity?.pity_count ?? 0, engineer: engineerPity?.pity_count ?? 0 },
         shardMarket: { driverSlots: shardDriverSlots, engineerSlots: shardEngineerSlots, refreshAt: shardRefreshAt },
+        recruitBanners,
       }}
     />
   );

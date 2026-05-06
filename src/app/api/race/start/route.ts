@@ -79,9 +79,18 @@ export async function POST(req: NextRequest) {
   }
 
   // Snapshot NPC field: pick field_size-1 random NPCs from this circuit's pool
-  type NpcCar = { id: number; name: string; stat_speed: number; stat_handling: number; stat_durability: number; stat_acceleration: number };
+  type NpcCar = {
+    id: number; name: string;
+    stat_speed: number; stat_acceleration: number; stat_handling: number; stat_stability: number;
+    stat_durability: number; stat_weight: number; stat_braking: number; stat_control: number;
+    stat_shift_speed: number; stat_efficiency: number; stat_grip: number; stat_cornering: number;
+  };
   const allNpcs = db.prepare(
-    `SELECT id, name, stat_speed, stat_handling, stat_durability, stat_acceleration FROM npc_cars WHERE circuit_id = ?`
+    `SELECT id, name,
+            stat_speed, stat_acceleration, stat_handling, stat_stability,
+            stat_durability, stat_weight, stat_braking, stat_control,
+            stat_shift_speed, stat_efficiency, stat_grip, stat_cornering
+     FROM npc_cars WHERE circuit_id = ?`
   ).all(circuit_id) as NpcCar[];
 
   // Shuffle and pick field_size-1

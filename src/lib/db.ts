@@ -100,6 +100,10 @@ function applyColumnMigrations(database: import("sql.js").Database): void {
     { table: "users",              column: "recruit_shards",    def: "INTEGER NOT NULL DEFAULT 0" },
     // materials
     { table: "materials",          column: "art",               def: "TEXT" },
+    // circuits: art column for race images
+    { table: "circuits",           column: "art",               def: "TEXT" },
+    { table: "circuits",           column: "entry_cost",        def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "circuits",           column: "field_size",        def: "INTEGER NOT NULL DEFAULT 5" },
     // car_crafting_queue: make engineers optional + add slot tracking
     { table: "car_crafting_queue", column: "engineer_id_1_opt", def: "INTEGER" },
     { table: "car_crafting_queue", column: "engineer_id_2_opt", def: "INTEGER" },

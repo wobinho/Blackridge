@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import type { RacePageData, RaceCircuit, UserDriver, UserEngineer, UserCar, ActiveRace } from "./page";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -82,13 +83,31 @@ function CircuitCard({
 
   const disabled = isActive || !canAfford;
 
+  const circuitImgSrc = circuit.art
+    ? `/assets/races/${circuit.art}.png`
+    : null;
+
   return (
     <div className={`race-circuit-card ${isActive ? "race-circuit-active" : ""} ${!canAfford && !isActive ? "race-circuit-cant-afford" : ""}`}>
-      {/* Header gradient strip */}
+      {/* Circuit image section */}
       <div
-        className="race-circuit-header"
+        className="race-circuit-img-wrap"
         style={{ background: DIFF_GRADIENTS[circuit.difficulty] ?? DIFF_GRADIENTS[1] }}
       >
+        {circuitImgSrc && (
+          <Image
+            src={circuitImgSrc}
+            alt={circuit.name}
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            className="race-circuit-img"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
+        {/* Overlay gradient */}
+        <div className="race-circuit-img-overlay" style={{ background: DIFF_GRADIENTS[circuit.difficulty] ?? DIFF_GRADIENTS[1] }} />
+
+        {/* Badges row on top of image */}
         <div className="race-circuit-header-inner">
           <DifficultyDots level={circuit.difficulty} />
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -116,21 +135,6 @@ function CircuitCard({
 
         {circuit.description && (
           <p className="race-circuit-desc">{circuit.description}</p>
-        )}
-
-        {/* Requirements */}
-        {(circuit.archetype || circuit.min_speed > 0 || circuit.min_handling > 0) && (
-          <div className="race-req-row">
-            {circuit.archetype && (
-              <span className="race-req-badge">TYPE: {circuit.archetype.toUpperCase()}</span>
-            )}
-            {circuit.min_speed > 0 && (
-              <span className="race-req-badge">MIN SPD {circuit.min_speed}</span>
-            )}
-            {circuit.min_handling > 0 && (
-              <span className="race-req-badge">MIN HND {circuit.min_handling}</span>
-            )}
-          </div>
         )}
 
         {/* 1st place reward preview */}
@@ -176,11 +180,18 @@ function CircuitCard({
 }
 
 // ─── Race Standings Modal ─────────────────────────────────────────────────────
-type NpcEntry = { id: number; name: string; stat_speed: number; stat_handling: number; stat_durability: number; stat_acceleration: number };
+type NpcEntry = {
+  id: number; name: string;
+  stat_speed: number; stat_acceleration: number; stat_handling: number; stat_stability: number;
+  stat_durability: number; stat_weight: number; stat_braking: number; stat_control: number;
+  stat_shift_speed: number; stat_efficiency: number; stat_grip: number; stat_cornering: number;
+};
 type StandingEntry = { label: string; isPlayer: boolean; score: number; position: number };
 
-function compositeScore(speed: number, handling: number, accel: number, dur: number) {
-  return speed * 0.45 + handling * 0.25 + accel * 0.20 + dur * 0.10;
+function npcPerformance(n: NpcEntry): number {
+  return n.stat_speed + n.stat_acceleration + n.stat_handling + n.stat_stability
+       + n.stat_durability + n.stat_weight + n.stat_braking + n.stat_control
+       + n.stat_shift_speed + n.stat_efficiency + n.stat_grip + n.stat_cornering;
 }
 
 function makeSeededRand(seed: number) {
@@ -210,13 +221,17 @@ function RaceStandingsModal({
   const seededRand = useCallback(makeSeededRand(race.id * 13337), [race.id]);
 
   const [standings, setStandings] = useState<StandingEntry[]>(() => {
-    const playerBaseScore = 50; // placeholder; real score isn't known yet
+    // Player base: median NPC performance as placeholder until claim reveals real result
+    const npcPerfs = npcs.map(npcPerformance);
+    const medianPerf = npcPerfs.length > 0
+      ? npcPerfs.sort((a, b) => a - b)[Math.floor(npcPerfs.length / 2)]
+      : 400;
     const entries: StandingEntry[] = [
-      { label: `${race.car_name} · ${race.driver_name}`, isPlayer: true, score: playerBaseScore, position: 0 },
+      { label: `${race.car_name} · ${race.driver_name}`, isPlayer: true, score: medianPerf, position: 0 },
       ...npcs.map((n) => ({
         label: n.name,
         isPlayer: false,
-        score: compositeScore(n.stat_speed, n.stat_handling, n.stat_acceleration, n.stat_durability),
+        score: npcPerformance(n),
         position: 0,
       })),
     ];
@@ -237,11 +252,10 @@ function RaceStandingsModal({
       setStandings((prev) => {
         const updated = prev.map((e, i) => {
           if (e.isPlayer) {
-            // Player score fluctuates based on progress
-            const jitter = (seededRand(tick * 7 + i) * 2 - 1) * 8 * (1 - progress * 0.5);
-            return { ...e, score: 50 + jitter };
+            const jitter = (seededRand(tick * 7 + i) * 2 - 1) * e.score * 0.08 * (1 - progress * 0.5);
+            return { ...e, score: e.score + jitter };
           }
-          const jitter = (seededRand(tick * 3 + i * 11) * 2 - 1) * 10;
+          const jitter = (seededRand(tick * 3 + i * 11) * 2 - 1) * e.score * 0.05;
           return { ...e, score: e.score + jitter * 0.1 };
         });
         return rank(updated);
@@ -1196,11 +1210,31 @@ const RACE_STYLES = `
   opacity: 0.7;
 }
 
-.race-circuit-header {
-  height: 64px;
+/* ── Circuit Image ───────────────────────────────────────────── */
+.race-circuit-img-wrap {
   position: relative;
+  width: 100%;
+  height: 140px;
   overflow: hidden;
 }
+
+.race-circuit-img {
+  object-fit: cover;
+  object-position: center 40%;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.race-circuit-card:hover .race-circuit-img {
+  transform: scale(1.06);
+}
+
+.race-circuit-img-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .race-circuit-header-inner {
   position: absolute;
   bottom: 8px;
@@ -1209,6 +1243,7 @@ const RACE_STYLES = `
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  z-index: 2;
 }
 .race-circuit-slash {
   position: absolute;
@@ -1218,6 +1253,7 @@ const RACE_STYLES = `
   height: 60px;
   background: rgba(232,0,28,0.08);
   clip-path: polygon(100% 0, 0 0, 100% 100%);
+  z-index: 2;
 }
 
 .race-diff-dot {
@@ -1264,21 +1300,6 @@ const RACE_STYLES = `
   margin-bottom: 10px;
 }
 
-.race-req-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 10px;
-}
-.race-req-badge {
-  font-family: var(--font-mono, monospace);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  color: #e8001c;
-  border: 1px solid rgba(232,0,28,0.3);
-  padding: 2px 6px;
-  border-radius: 2px;
-}
 
 .race-field-badge {
   font-family: var(--font-mono, monospace);

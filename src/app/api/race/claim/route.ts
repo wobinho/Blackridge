@@ -15,13 +15,23 @@ type NpcCar = {
   id: number;
   name: string;
   stat_speed: number;
-  stat_handling: number;
-  stat_durability: number;
   stat_acceleration: number;
+  stat_handling: number;
+  stat_stability: number;
+  stat_durability: number;
+  stat_weight: number;
+  stat_braking: number;
+  stat_control: number;
+  stat_shift_speed: number;
+  stat_efficiency: number;
+  stat_grip: number;
+  stat_cornering: number;
 };
 
-function compositeScore(speed: number, handling: number, acceleration: number, durability: number): number {
-  return speed * 0.45 + handling * 0.25 + acceleration * 0.20 + durability * 0.10;
+function npcPerformance(npc: NpcCar): number {
+  return npc.stat_speed + npc.stat_acceleration + npc.stat_handling + npc.stat_stability
+       + npc.stat_durability + npc.stat_weight + npc.stat_braking + npc.stat_control
+       + npc.stat_shift_speed + npc.stat_efficiency + npc.stat_grip + npc.stat_cornering;
 }
 
 function applyRng(score: number, jitterPct: number): number {
@@ -48,8 +58,10 @@ export async function POST(req: NextRequest) {
            r.status, r.completes_at, r.npc_field,
            c.podium_rewards, c.field_size,
            d.speed as driver_speed, d.skill as driver_skill,
-           car.stat_speed as car_speed, car.stat_handling as car_handling,
-           car.stat_acceleration as car_acceleration, car.stat_durability as car_durability,
+           car.stat_speed + car.stat_acceleration + car.stat_handling + car.stat_stability
+             + car.stat_durability + car.stat_weight + car.stat_braking + car.stat_control
+             + car.stat_shift_speed + car.stat_efficiency + car.stat_grip + car.stat_cornering
+             as car_performance,
            COALESCE(e.race_bonus, 0) as engineer_bonus
     FROM races r
     JOIN circuits c ON c.id = r.circuit_id
@@ -62,7 +74,7 @@ export async function POST(req: NextRequest) {
     engineer_id: number | null; car_id: number; status: string; completes_at: number;
     npc_field: string; podium_rewards: string; field_size: number;
     driver_speed: number; driver_skill: number;
-    car_speed: number; car_handling: number; car_acceleration: number; car_durability: number;
+    car_performance: number;
     engineer_bonus: number;
   } | undefined;
 
@@ -77,23 +89,16 @@ export async function POST(req: NextRequest) {
     try { return JSON.parse(race.npc_field) as NpcCar[]; } catch { return []; }
   })();
 
-  // Player composite score (driver stats boost car stats)
-  const driverSpeedBoost = race.driver_speed * 0.15;
-  const driverSkillBoost = race.driver_skill * 0.10;
+  // Player score: car performance + driver/engineer bonuses, then ±12% RNG
+  const driverBoost = (race.driver_speed + race.driver_skill) * 0.12;
   const engBoost = race.engineer_bonus * 0.05;
-  const playerRawScore = compositeScore(
-    race.car_speed + driverSpeedBoost,
-    race.car_handling + driverSkillBoost,
-    race.car_acceleration,
-    race.car_durability
-  ) + engBoost;
-
+  const playerRawScore = race.car_performance + driverBoost + engBoost;
   const playerScore = applyRng(playerRawScore, 12);
 
-  // Each NPC gets ±15% jitter
+  // Each NPC gets ±15% jitter applied to their summed performance
   const npcScores = npcField.map((npc) => ({
     name: npc.name,
-    score: applyRng(compositeScore(npc.stat_speed, npc.stat_handling, npc.stat_acceleration, npc.stat_durability), 15),
+    score: applyRng(npcPerformance(npc), 15),
   }));
 
   // Position = how many NPCs beat the player + 1

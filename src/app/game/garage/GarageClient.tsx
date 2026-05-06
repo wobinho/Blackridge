@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import type { GaragePageData, GarageCar } from "./page";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -9,7 +10,21 @@ import type { GaragePageData, GarageCar } from "./page";
 const TABS = ["CARS", "FOR SALE"] as const;
 type Tab = typeof TABS[number];
 
-const TIER_LABELS = ["", "I", "II", "III", "IV", "V"];
+// Stat groups matching part categories
+const STAT_GROUPS = [
+  { label: "ENGINE",     icon: "⚡", stats: [{ key: "stat_speed", abbr: "SPD" }, { key: "stat_acceleration", abbr: "ACCEL" }] },
+  { label: "SUSPENSION", icon: "⟳", stats: [{ key: "stat_handling", abbr: "HANDL" }, { key: "stat_stability", abbr: "STAB" }] },
+  { label: "CHASSIS",    icon: "□", stats: [{ key: "stat_durability", abbr: "DUR" }, { key: "stat_weight", abbr: "WGHT" }] },
+  { label: "BRAKES",     icon: "◉", stats: [{ key: "stat_braking", abbr: "BRK" }, { key: "stat_control", abbr: "CTRL" }] },
+  { label: "GEARBOX",    icon: "⚙", stats: [{ key: "stat_shift_speed", abbr: "SHIFT" }, { key: "stat_efficiency", abbr: "EFF" }] },
+  { label: "TIRES",      icon: "◎", stats: [{ key: "stat_grip", abbr: "GRIP" }, { key: "stat_cornering", abbr: "CORN" }] },
+] as const;
+
+const ALL_STAT_KEYS: (keyof GarageCar)[] = [
+  "stat_speed", "stat_acceleration", "stat_handling", "stat_stability",
+  "stat_durability", "stat_weight", "stat_braking", "stat_control",
+  "stat_shift_speed", "stat_efficiency", "stat_grip", "stat_cornering",
+];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -20,6 +35,23 @@ function fmtCr(n: number): string {
 function winRate(wins: number, races: number): string {
   if (races === 0) return "—";
   return `${Math.round((wins / races) * 100)}%`;
+}
+
+function getPerformance(car: GarageCar): number {
+  return ALL_STAT_KEYS.reduce((sum, key) => sum + ((car[key] as number) || 0), 0);
+}
+
+// Max possible performance for a bar — rough reference ceiling
+const PERF_MAX = 800;
+
+// Archetype accent colors
+function archetypeColor(archetype: string): string {
+  switch (archetype) {
+    case "classic_car": return "#ffffff";
+    case "sports_car":  return "#e8001c";
+    case "luxury_car":  return "#c9a84c";
+    default:            return "#e8001c";
+  }
 }
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
@@ -46,19 +78,29 @@ function Toast({ toast }: { toast: { msg: string; type: "ok" | "err" } | null })
   );
 }
 
-// ─── Stat Bar ────────────────────────────────────────────────────────────────
+// ─── Car Image ───────────────────────────────────────────────────────────────
 
-function StatBar({ label, value, color = "#e8001c" }: { label: string; value: number; color?: string }) {
+function CarImage({ art, name, accent }: { art: string | null; name: string; accent: string }) {
+  const src = art
+    ? `/assets/cars/${art}.png`
+    : "/assets/cars/placeholder-4x3.svg";
+
   return (
-    <div className="grg-stat-row">
-      <span className="grg-stat-label">{label}</span>
-      <div className="grg-stat-track">
-        <div
-          className="grg-stat-fill"
-          style={{ width: `${Math.min(value, 100)}%`, background: color }}
-        />
-      </div>
-      <span className="grg-stat-num">{value}</span>
+    <div className="grg-car-img-wrap">
+      <Image
+        src={src}
+        alt={name}
+        fill
+        sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        className="grg-car-img"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = "/assets/cars/placeholder-4x3.svg";
+        }}
+      />
+      {/* Gradient overlay — bottom fade into card body */}
+      <div className="grg-car-img-fade" style={{ "--fade-color": accent } as React.CSSProperties} />
+      {/* Top-left accent line */}
+      <div className="grg-car-img-accent" style={{ background: accent }} />
     </div>
   );
 }
@@ -67,25 +109,43 @@ function StatBar({ label, value, color = "#e8001c" }: { label: string; value: nu
 
 function CarCard({
   car,
-  onList,
-  onDelist,
-  loading,
+  onClick,
 }: {
   car: GarageCar;
-  onList?: (car: GarageCar) => void;
-  onDelist?: (car: GarageCar) => void;
-  loading?: boolean;
+  onClick: (car: GarageCar) => void;
 }) {
   const isRacing = car.status === "racing";
   const isForSale = car.status === "for_sale";
+  const perf = getPerformance(car);
+  const perfPct = Math.min((perf / PERF_MAX) * 100, 100);
+  const accent = archetypeColor(car.archetype);
 
   return (
     <div
       className="grg-car-card"
-      style={{ "--car-color": car.color } as React.CSSProperties}
+      style={{ "--car-color": accent } as React.CSSProperties}
+      onClick={() => onClick(car)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onClick(car)}
     >
+      {/* 4:3 Car Image */}
+      <CarImage art={car.art} name={car.name} accent={accent} />
+
+      {/* Status overlay on image */}
+      <div className="grg-card-status-overlay">
+        {isRacing && (
+          <div className="grg-status-pill grg-status-racing">
+            <span className="grg-racing-dot" /><span>RACING</span>
+          </div>
+        )}
+        {isForSale && (
+          <div className="grg-status-pill grg-status-sale">FOR SALE</div>
+        )}
+      </div>
+
       {/* Color accent bar */}
-      <div className="grg-car-accent" style={{ background: car.color }} />
+      <div className="grg-car-accent" style={{ background: accent }} />
 
       {/* Header */}
       <div className="grg-car-header">
@@ -98,24 +158,21 @@ function CarCard({
         </div>
         <div className="grg-car-swatch-wrap">
           <div className="grg-color-swatch" style={{ background: car.color }} />
-          <div className="grg-status-badge" data-status={car.status}>
-            {isRacing ? (
-              <span className="grg-racing-dot" />
-            ) : isForSale ? (
-              <span style={{ color: "#c9a84c" }}>FOR SALE</span>
-            ) : (
-              <span>IN GARAGE</span>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grg-stats-block">
-        <StatBar label="SPD" value={car.stat_speed} color={car.color} />
-        <StatBar label="HDL" value={car.stat_handling} color={car.color} />
-        <StatBar label="DRB" value={car.stat_durability} color={car.color} />
-        <StatBar label="ACC" value={car.stat_acceleration} color={car.color} />
+      {/* Performance score */}
+      <div className="grg-perf-block">
+        <div className="grg-perf-label-row">
+          <span className="grg-perf-label">PERFORMANCE</span>
+          <span className="grg-perf-score" style={{ color: accent }}>{perf}</span>
+        </div>
+        <div className="grg-perf-track">
+          <div
+            className="grg-perf-fill"
+            style={{ width: `${perfPct}%`, background: accent }}
+          />
+        </div>
       </div>
 
       {/* Race record */}
@@ -144,31 +201,162 @@ function CarCard({
         </div>
       )}
 
-      {/* Actions */}
-      <div className="grg-card-actions">
-        {!isForSale && !isRacing && onList && (
-          <button
-            className="grg-list-btn"
-            onClick={() => onList(car)}
-            disabled={loading}
-          >
-            LIST FOR SALE
-          </button>
+      {/* Tap hint */}
+      <div className="grg-card-tap-hint">
+        <span>TAP FOR DETAILS</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2 5h6M5 2l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+
+function DetailModal({
+  car,
+  onClose,
+  onListForSale,
+  onDelist,
+  delistLoading,
+}: {
+  car: GarageCar;
+  onClose: () => void;
+  onListForSale: (car: GarageCar) => void;
+  onDelist: (car: GarageCar) => void;
+  delistLoading: boolean;
+}) {
+  const isRacing = car.status === "racing";
+  const isForSale = car.status === "for_sale";
+  const perf = getPerformance(car);
+  const accent = archetypeColor(car.archetype);
+
+  return (
+    <div className="grg-modal-overlay" onClick={onClose}>
+      <div className="grg-detail-modal" onClick={(e) => e.stopPropagation()}>
+        {/* Hero car image */}
+        <div className="grg-detail-hero-img">
+          <CarImage art={car.art} name={car.name} accent={accent} />
+          {/* Status overlay */}
+          <div className="grg-card-status-overlay">
+            {isRacing && <div className="grg-status-pill grg-status-racing"><span className="grg-racing-dot" /><span>RACING</span></div>}
+            {isForSale && <div className="grg-status-pill grg-status-sale">FOR SALE</div>}
+          </div>
+          {/* Close button pinned top-right */}
+          <button className="grg-detail-img-close" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Header */}
+        <div className="grg-detail-header">
+          <div className="grg-detail-header-left">
+            <div className="grg-detail-status-row">
+              {!isRacing && !isForSale && <span className="grg-detail-status-text">IN GARAGE</span>}
+            </div>
+            <h2 className="grg-detail-name">{car.name}</h2>
+            <div className="grg-detail-sub">
+              <span className="grg-car-model">{car.model_code}</span>
+              <span className="grg-tier-badge">{car.archetype.replace("_", " ").toUpperCase()}</span>
+              <div className="grg-color-swatch" style={{ background: car.color, width: "0.9rem", height: "0.9rem" }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Performance hero */}
+        <div className="grg-detail-perf-hero">
+          <div className="grg-detail-perf-inner">
+            <span className="grg-detail-perf-label">PERFORMANCE</span>
+            <span className="grg-detail-perf-num" style={{ color: accent }}>{perf}</span>
+          </div>
+          <div className="grg-detail-perf-track">
+            <div className="grg-detail-perf-fill" style={{ width: `${Math.min((perf / PERF_MAX) * 100, 100)}%`, background: accent }} />
+          </div>
+        </div>
+
+        {/* Stat breakdown by part group */}
+        <div className="grg-detail-section-label">STATS BREAKDOWN</div>
+        <div className="grg-detail-stat-grid">
+          {STAT_GROUPS.map((group) => {
+            const groupTotal = group.stats.reduce((s, st) => s + ((car[st.key as keyof GarageCar] as number) || 0), 0);
+            return (
+              <div key={group.label} className="grg-detail-group">
+                <div className="grg-detail-group-header">
+                  <span className="grg-detail-group-label">{group.label}</span>
+                  <span className="grg-detail-group-total" style={{ color: accent }}>{groupTotal}</span>
+                </div>
+                {group.stats.map((st) => {
+                  const val = (car[st.key as keyof GarageCar] as number) || 0;
+                  return (
+                    <div key={st.key} className="grg-detail-stat-row">
+                      <span className="grg-detail-stat-abbr">{st.abbr}</span>
+                      <div className="grg-detail-stat-track">
+                        <div
+                          className="grg-detail-stat-fill"
+                          style={{ width: `${Math.min((val / 200) * 100, 100)}%`, background: accent }}
+                        />
+                      </div>
+                      <span className="grg-detail-stat-num">{val}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Race record */}
+        <div className="grg-detail-section-label">RACE RECORD</div>
+        <div className="grg-detail-record">
+          <div className="grg-detail-record-item">
+            <span className="grg-detail-record-val">{car.total_races}</span>
+            <span className="grg-detail-record-label">RACES</span>
+          </div>
+          <div className="grg-record-divider" />
+          <div className="grg-detail-record-item">
+            <span className="grg-detail-record-val">{car.total_wins}</span>
+            <span className="grg-detail-record-label">WINS</span>
+          </div>
+          <div className="grg-record-divider" />
+          <div className="grg-detail-record-item">
+            <span className="grg-detail-record-val">{winRate(car.total_wins, car.total_races)}</span>
+            <span className="grg-detail-record-label">WIN RATE</span>
+          </div>
+          <div className="grg-record-divider" />
+          <div className="grg-detail-record-item">
+            <span className="grg-detail-record-val">{car.total_races - car.total_wins}</span>
+            <span className="grg-detail-record-label">LOSSES</span>
+          </div>
+        </div>
+
+        {/* Sale price if listed */}
+        {isForSale && car.sale_price != null && (
+          <div className="grg-detail-listed-price">
+            <span className="grg-sale-label">LISTED AT</span>
+            <span className="grg-sale-amount">{fmtCr(car.sale_price)} CR</span>
+          </div>
         )}
-        {isRacing && (
-          <button className="grg-list-btn" disabled>
-            RACING
-          </button>
-        )}
-        {isForSale && onDelist && (
-          <button
-            className="grg-delist-btn"
-            onClick={() => onDelist(car)}
-            disabled={loading}
-          >
-            CANCEL LISTING
-          </button>
-        )}
+
+        {/* Actions */}
+        <div className="grg-detail-actions">
+          {!isForSale && !isRacing && (
+            <button className="grg-confirm-btn" onClick={() => onListForSale(car)}>
+              LIST FOR SALE
+            </button>
+          )}
+          {isRacing && (
+            <button className="grg-confirm-btn" disabled>CURRENTLY RACING</button>
+          )}
+          {isForSale && (
+            <button
+              className="grg-delist-btn"
+              onClick={() => onDelist(car)}
+              disabled={delistLoading}
+            >
+              {delistLoading ? "CANCELLING..." : "CANCEL LISTING"}
+            </button>
+          )}
+          <button className="grg-close-btn" onClick={onClose}>CLOSE</button>
+        </div>
       </div>
     </div>
   );
@@ -209,6 +397,8 @@ function ListModal({
     }
   }
 
+  const accent = archetypeColor(car.archetype);
+
   return (
     <div className="grg-modal-overlay" onClick={onClose}>
       <div className="grg-modal" onClick={(e) => e.stopPropagation()}>
@@ -219,27 +409,15 @@ function ListModal({
 
         {/* Car summary */}
         <div className="grg-modal-car-summary">
-          <div className="grg-modal-car-accent" style={{ background: car.color }} />
+          <div className="grg-modal-car-accent" style={{ background: accent }} />
           <div className="grg-modal-car-info">
             <span className="grg-modal-car-name">{car.name}</span>
             <span className="grg-modal-car-sub">{car.model_code} · {car.archetype.replace("_", " ").toUpperCase()}</span>
           </div>
-          <div className="grg-modal-color-swatch" style={{ background: car.color }} />
-        </div>
-
-        {/* Stats preview */}
-        <div className="grg-modal-stats">
-          {[
-            { label: "SPD", value: car.stat_speed },
-            { label: "HDL", value: car.stat_handling },
-            { label: "DRB", value: car.stat_durability },
-            { label: "ACC", value: car.stat_acceleration },
-          ].map((s) => (
-            <div key={s.label} className="grg-modal-stat">
-              <span className="grg-modal-stat-val" style={{ color: car.color }}>{s.value}</span>
-              <span className="grg-modal-stat-label">{s.label}</span>
-            </div>
-          ))}
+          <div className="grg-modal-perf-chip" style={{ borderColor: accent, color: accent }}>
+            <span className="grg-modal-perf-num">{getPerformance(car)}</span>
+            <span className="grg-modal-perf-lbl">PERF</span>
+          </div>
         </div>
 
         {/* Record */}
@@ -289,6 +467,7 @@ export default function GarageClient({ data }: { data: GaragePageData }) {
   const router = useRouter();
   const { toast, show } = useToast();
   const [tab, setTab] = useState<Tab>("CARS");
+  const [detailCar, setDetailCar] = useState<GarageCar | null>(null);
   const [listTarget, setListTarget] = useState<GarageCar | null>(null);
   const [delistLoading, setDelistLoading] = useState<number | null>(null);
 
@@ -306,7 +485,11 @@ export default function GarageClient({ data }: { data: GaragePageData }) {
       });
       const data = await res.json();
       if (!res.ok) { show(data.error ?? "Failed to cancel listing.", "err"); }
-      else { show(`${car.name} removed from market.`, "ok"); router.refresh(); }
+      else {
+        show(`${car.name} removed from market.`, "ok");
+        setDetailCar(null);
+        router.refresh();
+      }
     } catch {
       show("Network error.", "err");
     } finally {
@@ -316,8 +499,18 @@ export default function GarageClient({ data }: { data: GaragePageData }) {
 
   function handleListSuccess(msg: string) {
     setListTarget(null);
+    setDetailCar(null);
     show(msg, "ok");
     router.refresh();
+  }
+
+  function handleOpenDetail(car: GarageCar) {
+    setDetailCar(car);
+  }
+
+  function handleListFromDetail(car: GarageCar) {
+    setDetailCar(null);
+    setListTarget(car);
   }
 
   return (
@@ -376,12 +569,7 @@ export default function GarageClient({ data }: { data: GaragePageData }) {
               ) : (
                 <div className="grg-grid">
                   {garageCars.map((car) => (
-                    <CarCard
-                      key={car.id}
-                      car={car}
-                      onList={setListTarget}
-                      loading={delistLoading === car.id}
-                    />
+                    <CarCard key={car.id} car={car} onClick={handleOpenDetail} />
                   ))}
                 </div>
               )}
@@ -405,12 +593,7 @@ export default function GarageClient({ data }: { data: GaragePageData }) {
               ) : (
                 <div className="grg-grid">
                   {forSaleCars.map((car) => (
-                    <CarCard
-                      key={car.id}
-                      car={car}
-                      onDelist={handleDelist}
-                      loading={delistLoading === car.id}
-                    />
+                    <CarCard key={car.id} car={car} onClick={handleOpenDetail} />
                   ))}
                 </div>
               )}
@@ -418,6 +601,17 @@ export default function GarageClient({ data }: { data: GaragePageData }) {
           )}
         </div>
       </div>
+
+      {/* Detail modal */}
+      {detailCar && !listTarget && (
+        <DetailModal
+          car={detailCar}
+          onClose={() => setDetailCar(null)}
+          onListForSale={handleListFromDetail}
+          onDelist={handleDelist}
+          delistLoading={delistLoading === detailCar.id}
+        />
+      )}
 
       {/* List for sale modal */}
       {listTarget && (
@@ -572,19 +766,98 @@ const GARAGE_STYLES = `
   .grg-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
+/* ── Car Image ──────────────────────────────────────────────── */
+.grg-car-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #0a0a0a;
+}
+
+.grg-car-img {
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.grg-car-card:hover .grg-car-img {
+  transform: scale(1.04);
+}
+
+.grg-car-img-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 30%,
+    rgba(17, 17, 17, 0.5) 70%,
+    #111111 100%
+  );
+  pointer-events: none;
+}
+
+.grg-car-img-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  opacity: 0.9;
+}
+
+/* Status pills on image */
+.grg-card-status-overlay {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+}
+
+.grg-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  border-radius: 2px;
+  backdrop-filter: blur(8px);
+}
+
+.grg-status-racing {
+  background: rgba(232, 0, 28, 0.2);
+  border: 1px solid rgba(232, 0, 28, 0.5);
+  color: #e8001c;
+}
+
+.grg-status-sale {
+  background: rgba(201, 168, 76, 0.2);
+  border: 1px solid rgba(201, 168, 76, 0.5);
+  color: #c9a84c;
+}
+
 /* ── Car Card ───────────────────────────────────────────── */
 .grg-car-card {
   background: #111111;
   border: 1px solid rgba(255,255,255,0.07);
   position: relative;
   overflow: hidden;
-  transition: border-color 0.2s, transform 0.2s;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  cursor: pointer;
 }
 
 .grg-car-card:hover {
-  border-color: rgba(255,255,255,0.14);
-  transform: translateY(-1px);
+  border-color: rgba(255,255,255,0.18);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.grg-car-card:focus-visible {
+  outline: 1px solid rgba(255,255,255,0.3);
+  outline-offset: 2px;
 }
 
 .grg-car-accent {
@@ -594,6 +867,7 @@ const GARAGE_STYLES = `
   width: 3px;
   height: 100%;
   opacity: 0.8;
+  pointer-events: none;
 }
 
 /* ── Card Header ────────────────────────────────────────── */
@@ -676,52 +950,47 @@ const GARAGE_STYLES = `
   background: #e8001c;
   border-radius: 50%;
   animation: grg-pulse 1s infinite;
-}
-
-/* ── Stats ──────────────────────────────────────────────── */
-.grg-stats-block {
-  padding: 0 1.25rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.grg-stat-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.grg-stat-label {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 0.6rem;
-  color: rgba(255,255,255,0.3);
-  letter-spacing: 0.08em;
-  width: 2rem;
   flex-shrink: 0;
 }
 
-.grg-stat-track {
-  flex: 1;
+/* ── Performance Block (card) ───────────────────────────── */
+.grg-perf-block {
+  padding: 0 1.25rem 0.75rem;
+}
+
+.grg-perf-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.grg-perf-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.6rem;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.1em;
+}
+
+.grg-perf-score {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 1.6rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.grg-perf-track {
+  width: 100%;
   height: 3px;
   background: rgba(255,255,255,0.06);
   border-radius: 2px;
   overflow: hidden;
 }
 
-.grg-stat-fill {
+.grg-perf-fill {
   height: 100%;
   border-radius: 2px;
-  transition: width 0.6s ease;
-}
-
-.grg-stat-num {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 0.65rem;
-  color: rgba(255,255,255,0.5);
-  width: 1.8rem;
-  text-align: right;
-  flex-shrink: 0;
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ── Race Record ────────────────────────────────────────── */
@@ -782,57 +1051,22 @@ const GARAGE_STYLES = `
   letter-spacing: 0.04em;
 }
 
-/* ── Card Actions ───────────────────────────────────────── */
-.grg-card-actions {
-  padding: 0.75rem 1rem;
+/* ── Tap Hint ───────────────────────────────────────────── */
+.grg-card-tap-hint {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem 0.6rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.55rem;
+  color: rgba(255,255,255,0.18);
+  letter-spacing: 0.08em;
+  transition: color 0.2s;
 }
 
-.grg-list-btn {
-  width: 100%;
-  padding: 0.55rem 1rem;
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
-  font-size: 0.85rem;
-  letter-spacing: 0.12em;
-  background: transparent;
-  border: 1px solid rgba(232,0,28,0.5);
-  color: #e8001c;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
-}
-
-.grg-list-btn:hover:not(:disabled) {
-  background: rgba(232,0,28,0.08);
-  border-color: #e8001c;
-}
-
-.grg-list-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.grg-delist-btn {
-  width: 100%;
-  padding: 0.55rem 1rem;
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
-  font-size: 0.85rem;
-  letter-spacing: 0.12em;
-  background: transparent;
-  border: 1px solid rgba(201,168,76,0.4);
-  color: #c9a84c;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
-}
-
-.grg-delist-btn:hover:not(:disabled) {
-  background: rgba(201,168,76,0.07);
-  border-color: #c9a84c;
-}
-
-.grg-delist-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+.grg-car-card:hover .grg-card-tap-hint {
+  color: rgba(255,255,255,0.35);
 }
 
 /* ── Empty State ────────────────────────────────────────── */
@@ -894,12 +1128,12 @@ const GARAGE_STYLES = `
   .grg-toast { bottom: 2rem; left: calc(4rem + 50%); }
 }
 
-/* ── Modal ──────────────────────────────────────────────── */
+/* ── Detail Modal ───────────────────────────────────────── */
 .grg-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.8);
-  backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(6px);
   z-index: 50;
   display: flex;
   align-items: flex-end;
@@ -914,6 +1148,378 @@ const GARAGE_STYLES = `
   }
 }
 
+/* Detail modal — tall sheet */
+.grg-detail-modal {
+  background: #0e0e0e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-bottom: none;
+  width: 100%;
+  max-width: 520px;
+  max-height: 92vh;
+  overflow-y: auto;
+  animation: grg-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .grg-detail-modal {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    animation: grg-modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+    max-height: 90vh;
+  }
+}
+
+/* ── Detail modal hero image ─────────────────────────────── */
+.grg-detail-hero-img {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #0a0a0a;
+  flex-shrink: 0;
+}
+
+.grg-detail-hero-img .grg-car-img-fade {
+  background: linear-gradient(
+    to bottom,
+    transparent 40%,
+    rgba(14, 14, 14, 0.6) 75%,
+    #0e0e0e 100%
+  );
+}
+
+.grg-detail-img-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.7);
+  font-size: 0.8rem;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s;
+}
+
+.grg-detail-img-close:hover {
+  background: rgba(232,0,28,0.3);
+  color: #fff;
+  border-color: rgba(232,0,28,0.5);
+}
+
+.grg-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.25rem 1.25rem 0.75rem;
+}
+
+.grg-detail-header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.grg-detail-status-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.grg-detail-status-text {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.3);
+}
+
+.grg-detail-name {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.grg-detail-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+/* ── Performance Hero ───────────────────────────────────── */
+.grg-detail-perf-hero {
+  padding: 0.75rem 1.25rem 1rem;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.grg-detail-perf-inner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.grg-detail-perf-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.12em;
+}
+
+.grg-detail-perf-num {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 3rem;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.grg-detail-perf-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.grg-detail-perf-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Section Label ──────────────────────────────────────── */
+.grg-detail-section-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  color: rgba(255,255,255,0.25);
+  padding: 0.875rem 1.25rem 0.4rem;
+  text-transform: uppercase;
+}
+
+/* ── Stat Breakdown Grid ────────────────────────────────── */
+.grg-detail-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: rgba(255,255,255,0.05);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.grg-detail-group {
+  background: #0e0e0e;
+  padding: 0.75rem 1rem;
+}
+
+.grg-detail-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.grg-detail-group-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.35);
+}
+
+.grg-detail-group-total {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.grg-detail-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.grg-detail-stat-row:last-child { margin-bottom: 0; }
+
+.grg-detail-stat-abbr {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.55rem;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.06em;
+  width: 2.5rem;
+  flex-shrink: 0;
+}
+
+.grg-detail-stat-track {
+  flex: 1;
+  height: 2px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.grg-detail-stat-fill {
+  height: 100%;
+  border-radius: 1px;
+  transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.grg-detail-stat-num {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.6rem;
+  color: rgba(255,255,255,0.55);
+  width: 1.5rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Detail Record ──────────────────────────────────────── */
+.grg-detail-record {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.grg-detail-record-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.grg-detail-record-val {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 1.4rem;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.grg-detail-record-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.52rem;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.1em;
+}
+
+/* ── Detail Listed Price ────────────────────────────────── */
+.grg-detail-listed-price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: rgba(201,168,76,0.04);
+}
+
+/* ── Detail Actions ─────────────────────────────────────── */
+.grg-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem 1.5rem;
+}
+
+/* ── Buttons ────────────────────────────────────────────── */
+.grg-list-btn {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  background: transparent;
+  border: 1px solid rgba(232,0,28,0.5);
+  color: #e8001c;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+.grg-list-btn:hover:not(:disabled) {
+  background: rgba(232,0,28,0.08);
+  border-color: #e8001c;
+}
+
+.grg-list-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.grg-delist-btn {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  background: transparent;
+  border: 1px solid rgba(201,168,76,0.4);
+  color: #c9a84c;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+.grg-delist-btn:hover:not(:disabled) {
+  background: rgba(201,168,76,0.07);
+  border-color: #c9a84c;
+}
+
+.grg-delist-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.grg-close-btn {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.35);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.grg-close-btn:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.6);
+}
+
+.grg-confirm-btn {
+  width: 100%;
+  padding: 0.8rem 1.5rem;
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 1rem;
+  letter-spacing: 0.15em;
+  background: #e8001c;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s, background 0.2s;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+}
+
+.grg-confirm-btn:hover:not(:disabled) { background: #cc0018; }
+.grg-confirm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── List Modal (sale) ──────────────────────────────────── */
 .grg-modal {
   background: #111111;
   border: 1px solid rgba(255,255,255,0.1);
@@ -1001,44 +1607,29 @@ const GARAGE_STYLES = `
   letter-spacing: 0.06em;
 }
 
-.grg-modal-color-swatch {
-  width: 1rem;
-  height: 1rem;
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.2);
-  flex-shrink: 0;
-}
-
-/* Modal stats row */
-.grg-modal-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.grg-modal-stat {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  padding: 0.5rem 0.25rem;
+/* Performance chip in list modal */
+.grg-modal-perf-chip {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.2rem;
+  border: 1px solid;
+  padding: 0.35rem 0.6rem;
+  flex-shrink: 0;
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
 }
 
-.grg-modal-stat-val {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 1.1rem;
-  font-weight: 600;
+.grg-modal-perf-num {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 1.3rem;
+  letter-spacing: 0.04em;
   line-height: 1;
 }
 
-.grg-modal-stat-label {
+.grg-modal-perf-lbl {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 0.55rem;
-  color: rgba(255,255,255,0.25);
+  font-size: 0.52rem;
   letter-spacing: 0.1em;
+  opacity: 0.6;
 }
 
 .grg-modal-record {
@@ -1123,24 +1714,6 @@ const GARAGE_STYLES = `
 .grg-price-hint strong {
   color: #c9a84c;
 }
-
-/* Confirm button */
-.grg-confirm-btn {
-  width: 100%;
-  padding: 0.8rem 1.5rem;
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
-  font-size: 1rem;
-  letter-spacing: 0.15em;
-  background: #e8001c;
-  color: #ffffff;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.2s, background 0.2s;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
-}
-
-.grg-confirm-btn:hover:not(:disabled) { background: #cc0018; }
-.grg-confirm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Keyframes ──────────────────────────────────────────── */
 @keyframes grg-pulse {

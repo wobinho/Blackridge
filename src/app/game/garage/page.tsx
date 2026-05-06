@@ -10,6 +10,7 @@ export interface GarageCar {
   id: number;
   name: string;
   color: string;
+  art: string | null;
   stat_speed: number;
   stat_acceleration: number;
   stat_handling: number;
@@ -53,7 +54,7 @@ export default async function GaragePage() {
            c.stat_shift_speed, c.stat_efficiency, c.stat_grip, c.stat_cornering,
            c.wear, c.status, c.total_races, c.total_wins, c.sale_price,
            ml.id as listing_id,
-           ct.name as template_name, ct.model_code, ct.archetype, c.created_at
+           ct.name as template_name, ct.model_code, ct.archetype, ct.art, c.created_at
     FROM cars c
     JOIN car_templates ct ON ct.id = c.car_template_id
     LEFT JOIN market_listings ml ON ml.item_id = c.id AND ml.listing_type = 'car' AND ml.status = 'active'

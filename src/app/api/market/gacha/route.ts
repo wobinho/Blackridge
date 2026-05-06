@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   const weights = isDriverBanner ? DRIVER_POOL_WEIGHTS : ENGINEER_POOL_WEIGHTS;
 
   // Get all templates grouped by rarity
-  const templates = db.prepare(`SELECT id, name, rarity FROM ${table}`).all() as { id: number; name: string; rarity: Rarity }[];
+  const templates = db.prepare(`SELECT id, name, rarity, art FROM ${table}`).all() as { id: number; name: string; rarity: Rarity; art: string | null }[];
   const byRarity: Record<Rarity, typeof templates> = { common: [], rare: [], epic: [], legendary: [] };
   for (const t of templates) {
     if (byRarity[t.rarity]) byRarity[t.rarity].push(t);
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   const ownedTable = isDriverBanner ? "drivers" : "engineers";
 
   // Generate 10 results — shards are NOT awarded here; only the picked card awards shards (via PUT)
-  const results: Array<{ template_id: number; name: string; rarity: Rarity; is_new: boolean; shards_awarded: number }> = [];
+  const results: Array<{ template_id: number; name: string; rarity: Rarity; art: string | null; is_new: boolean; shards_awarded: number }> = [];
 
   for (let i = 0; i < 10; i++) {
     const rarity = weightedRoll(weights, pityCount);
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     const isNew = !owned;
     const shardsAwarded = isNew ? 0 : (SHARD_VALUES[rarity] ?? 5);
 
-    results.push({ template_id: pick.id, name: pick.name, rarity, is_new: isNew, shards_awarded: shardsAwarded });
+    results.push({ template_id: pick.id, name: pick.name, rarity, art: pick.art, is_new: isNew, shards_awarded: shardsAwarded });
   }
 
   // Deduct xgear only

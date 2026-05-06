@@ -323,11 +323,24 @@ CREATE TABLE IF NOT EXISTS engineers (
 -- RACE CIRCUITS
 -- ============================================================
 
+CREATE TABLE IF NOT EXISTS recruit_banners (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT    NOT NULL,
+  art         TEXT,                            -- e.g. "standard_driver" → assets/banners/standard_driver.png
+  banner_type TEXT    NOT NULL DEFAULT 'driver' CHECK (banner_type IN ('driver','engineer','mixed')),
+  description TEXT,
+  is_event    INTEGER NOT NULL DEFAULT 0,      -- 1 = limited-time event banner
+  active      INTEGER NOT NULL DEFAULT 1,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
 CREATE TABLE IF NOT EXISTS circuits (
   id               INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   name             TEXT    NOT NULL,
   location         TEXT    NOT NULL,
   image            TEXT,
+  art              TEXT,                            -- e.g. "ridgeport_oval" → assets/races/ridgeport_oval.png
   difficulty       INTEGER NOT NULL DEFAULT 1 CHECK (difficulty BETWEEN 1 AND 5),
   laps             INTEGER NOT NULL DEFAULT 10,
   reward_credits   INTEGER NOT NULL DEFAULT 500,
@@ -457,14 +470,22 @@ CREATE TABLE IF NOT EXISTS gacha_pity (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS npc_cars (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  circuit_id      INTEGER NOT NULL REFERENCES circuits(id),
-  name            TEXT    NOT NULL,
-  stat_speed      INTEGER NOT NULL DEFAULT 50,
-  stat_handling   INTEGER NOT NULL DEFAULT 50,
-  stat_durability INTEGER NOT NULL DEFAULT 50,
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  circuit_id        INTEGER NOT NULL REFERENCES circuits(id),
+  name              TEXT    NOT NULL,
+  stat_speed        INTEGER NOT NULL DEFAULT 50,
   stat_acceleration INTEGER NOT NULL DEFAULT 50,
-  description     TEXT
+  stat_handling     INTEGER NOT NULL DEFAULT 50,
+  stat_stability    INTEGER NOT NULL DEFAULT 50,
+  stat_durability   INTEGER NOT NULL DEFAULT 50,
+  stat_weight       INTEGER NOT NULL DEFAULT 50,
+  stat_braking      INTEGER NOT NULL DEFAULT 50,
+  stat_control      INTEGER NOT NULL DEFAULT 50,
+  stat_shift_speed  INTEGER NOT NULL DEFAULT 50,
+  stat_efficiency   INTEGER NOT NULL DEFAULT 50,
+  stat_grip         INTEGER NOT NULL DEFAULT 50,
+  stat_cornering    INTEGER NOT NULL DEFAULT 50,
+  description       TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_npc_cars_circuit ON npc_cars(circuit_id);

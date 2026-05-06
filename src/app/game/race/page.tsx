@@ -10,6 +10,7 @@ export interface RaceCircuit {
   id: number;
   name: string;
   location: string;
+  art: string | null;
   difficulty: number;
   laps: number;
   reward_credits: number;
@@ -114,7 +115,7 @@ export default async function RacePage() {
   const now = Math.floor(Date.now() / 1000);
 
   const circuits = db.prepare(`
-    SELECT id, name, location, difficulty, laps, reward_credits, reward_materials,
+    SELECT id, name, location, art, difficulty, laps, reward_credits, reward_materials,
            reward_prestige, unlock_level, description,
            COALESCE(archetype, NULL) as archetype,
            COALESCE(min_speed, 0) as min_speed,

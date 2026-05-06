@@ -400,11 +400,11 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
     db.prepare("INSERT INTO meta (key, value) VALUES ('starter_materials_backfill_v1', '1')").run();
   }
 
-  // Backfill: give all users 200 xgear starter
-  const xgearBackfill = db.prepare("SELECT value FROM meta WHERE key = 'xgear_starter_backfill_v1'").get();
+  // Backfill: give all users 300 xgear starter
+  const xgearBackfill = db.prepare("SELECT value FROM meta WHERE key = 'xgear_starter_backfill_v2'").get();
   if (!xgearBackfill) {
-    db.prepare(`UPDATE users SET xgear = MAX(xgear, 200) WHERE xgear < 200`).run();
-    db.prepare("INSERT INTO meta (key, value) VALUES ('xgear_starter_backfill_v1', '1')").run();
+    db.prepare(`UPDATE users SET xgear = MAX(xgear, 300) WHERE xgear < 300`).run();
+    db.prepare("INSERT INTO meta (key, value) VALUES ('xgear_starter_backfill_v2', '1')").run();
   }
 
   // Backfill: give user id=1 two of every blueprint for testing

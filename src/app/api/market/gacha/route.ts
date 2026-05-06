@@ -93,9 +93,8 @@ export async function POST(req: NextRequest) {
 
   const ownedTable = isDriverBanner ? "drivers" : "engineers";
 
-  // Generate 10 results
+  // Generate 10 results — shards are NOT awarded here; only the picked card awards shards (via PUT)
   const results: Array<{ template_id: number; name: string; rarity: Rarity; is_new: boolean; shards_awarded: number }> = [];
-  let totalShardsFromDuplicates = 0;
 
   for (let i = 0; i < 10; i++) {
     const rarity = weightedRoll(weights, pityCount);
@@ -116,25 +115,21 @@ export async function POST(req: NextRequest) {
 
     const isNew = !owned;
     const shardsAwarded = isNew ? 0 : (SHARD_VALUES[rarity] ?? 5);
-    if (!isNew) totalShardsFromDuplicates += shardsAwarded;
 
     results.push({ template_id: pick.id, name: pick.name, rarity, is_new: isNew, shards_awarded: shardsAwarded });
   }
 
-  // Deduct xgear, award any duplicate shards
+  // Deduct xgear only
   db.prepare(`UPDATE users SET xgear = xgear - ? WHERE id = ?`).run(ROLL_COST_XGEAR, session.id);
-  if (totalShardsFromDuplicates > 0) {
-    db.prepare(`UPDATE users SET recruit_shards = recruit_shards + ? WHERE id = ?`).run(totalShardsFromDuplicates, session.id);
-  }
 
   // Update pity
   db.prepare(`UPDATE gacha_pity SET pity_count = ? WHERE user_id = ? AND banner = ?`).run(pityCount, session.id, banner);
 
   db.prepare(
     `INSERT INTO activity_log (user_id, type, message, data) VALUES (?, 'gacha_roll', ?, ?)`
-  ).run(session.id, `Rolled ${banner} banner`, JSON.stringify({ banner, cost: ROLL_COST_XGEAR, shards_earned: totalShardsFromDuplicates }));
+  ).run(session.id, `Rolled ${banner} banner`, JSON.stringify({ banner, cost: ROLL_COST_XGEAR }));
 
-  return NextResponse.json({ success: true, results, roll_cost: ROLL_COST_XGEAR, shards_earned: totalShardsFromDuplicates });
+  return NextResponse.json({ success: true, results, roll_cost: ROLL_COST_XGEAR });
 }
 
 export async function PUT(req: NextRequest) {

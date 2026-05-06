@@ -1359,7 +1359,6 @@ export default function MarketClient({ data }: { data: MarketPageData }) {
       });
       const json = await res.json();
       if (!res.ok) { show(json.error ?? "Roll failed", "err"); return null; }
-      if (json.shards_earned > 0) show(`+${json.shards_earned} recruit shards from duplicates!`, "ok");
       router.refresh();
       return json.results as GachaResult[];
     } catch { show("Network error", "err"); return null; }

@@ -86,8 +86,8 @@ export async function register(data: {
 
     const userId = result.lastInsertRowid;
 
-    // Give starting credits
-    db.prepare("UPDATE users SET credits = 20000 WHERE id = ?").run(userId);
+    // Give starting credits and XGEAR
+    db.prepare("UPDATE users SET credits = 20000, xgear = 300 WHERE id = ?").run(userId);
 
     // Create workshop upgrades row
     db.prepare("INSERT INTO workshop_upgrades (user_id) VALUES (?)").run(userId);

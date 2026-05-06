@@ -175,18 +175,172 @@ function CircuitCard({
   );
 }
 
+// ─── Race Standings Modal ─────────────────────────────────────────────────────
+type NpcEntry = { id: number; name: string; stat_speed: number; stat_handling: number; stat_durability: number; stat_acceleration: number };
+type StandingEntry = { label: string; isPlayer: boolean; score: number; position: number };
+
+function compositeScore(speed: number, handling: number, accel: number, dur: number) {
+  return speed * 0.45 + handling * 0.25 + accel * 0.20 + dur * 0.10;
+}
+
+function makeSeededRand(seed: number) {
+  return (i: number) => {
+    const x = Math.sin(seed + i) * 10000;
+    return x - Math.floor(x);
+  };
+}
+
+function RaceStandingsModal({
+  race,
+  serverNow,
+  onClose,
+}: {
+  race: ActiveRace;
+  serverNow: number;
+  onClose: () => void;
+}) {
+  const totalSecs = race.completes_at - race.started_at;
+  const elapsed = serverNow - race.started_at;
+  const progress = Math.min(1, Math.max(0, elapsed / totalSecs));
+
+  const npcs: NpcEntry[] = (() => {
+    try { return JSON.parse(race.npc_field) as NpcEntry[]; } catch { return []; }
+  })();
+
+  const seededRand = useCallback(makeSeededRand(race.id * 13337), [race.id]);
+
+  const [standings, setStandings] = useState<StandingEntry[]>(() => {
+    const playerBaseScore = 50; // placeholder; real score isn't known yet
+    const entries: StandingEntry[] = [
+      { label: `${race.car_name} · ${race.driver_name}`, isPlayer: true, score: playerBaseScore, position: 0 },
+      ...npcs.map((n) => ({
+        label: n.name,
+        isPlayer: false,
+        score: compositeScore(n.stat_speed, n.stat_handling, n.stat_acceleration, n.stat_durability),
+        position: 0,
+      })),
+    ];
+    return rank(entries);
+  });
+
+  function rank(entries: StandingEntry[]): StandingEntry[] {
+    const sorted = [...entries].sort((a, b) => b.score - a.score);
+    return sorted.map((e, i) => ({ ...e, position: i + 1 }));
+  }
+
+  // Each tick, apply progress-based jitter to simulate live positions
+  const tickRef = useRef(0);
+  useEffect(() => {
+    const iv = setInterval(() => {
+      tickRef.current += 1;
+      const tick = tickRef.current;
+      setStandings((prev) => {
+        const updated = prev.map((e, i) => {
+          if (e.isPlayer) {
+            // Player score fluctuates based on progress
+            const jitter = (seededRand(tick * 7 + i) * 2 - 1) * 8 * (1 - progress * 0.5);
+            return { ...e, score: 50 + jitter };
+          }
+          const jitter = (seededRand(tick * 3 + i * 11) * 2 - 1) * 10;
+          return { ...e, score: e.score + jitter * 0.1 };
+        });
+        return rank(updated);
+      });
+    }, 2000);
+    return () => clearInterval(iv);
+  }, [progress]);
+
+  const secsLeft = Math.max(0, race.completes_at - serverNow);
+  const [displaySecs, setDisplaySecs] = useState(secsLeft);
+  useEffect(() => {
+    const iv = setInterval(() => setDisplaySecs((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const progressPct = Math.round(progress * 100);
+  const lap = Math.ceil(progress * (race.field_size > 6 ? 5 : 3));
+  const totalLaps = race.field_size > 6 ? 5 : 3;
+
+  return (
+    <div className="standings-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="standings-modal">
+        {/* Header */}
+        <div className="standings-header">
+          <div className="standings-header-left">
+            <div className="standings-circuit-name">{race.circuit_name}</div>
+            <div className="standings-meta">
+              LAP {Math.min(lap, totalLaps)}/{totalLaps}
+              <span className="standings-meta-sep">·</span>
+              {progressPct}% COMPLETE
+            </div>
+          </div>
+          <div className="standings-header-right">
+            <div className="standings-countdown">{formatCountdown(displaySecs)}</div>
+            <button className="standings-close" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="standings-progress-track">
+          <div className="standings-progress-fill" style={{ width: `${progressPct}%` }} />
+        </div>
+
+        {/* Live feed */}
+        <div className="standings-body">
+          <div className="standings-feed-label">
+            <span className="standings-feed-dot" />
+            LIVE STANDINGS
+          </div>
+          <div className="standings-list">
+            {standings.map((entry, idx) => {
+              const posLabel = `P${entry.position}`;
+              const posColor = entry.position === 1 ? "#c9a84c" : entry.position === 2 ? "#b0bec5" : entry.position === 3 ? "#cd7f32" : "rgba(255,255,255,0.25)";
+              return (
+                <div
+                  key={entry.label}
+                  className={`standings-row ${entry.isPlayer ? "standings-row-player" : ""}`}
+                  style={{ animationDelay: `${idx * 40}ms` }}
+                >
+                  <div className="standings-pos" style={{ color: posColor }}>{posLabel}</div>
+                  <div className="standings-bar-wrap">
+                    <div className="standings-entry-name">{entry.label}</div>
+                    <div className="standings-bar-track">
+                      <div
+                        className={`standings-bar-fill ${entry.isPlayer ? "standings-bar-player" : ""}`}
+                        style={{ width: `${Math.min(100, (entry.score / 120) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  {entry.isPlayer && <div className="standings-you-badge">YOU</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="standings-footer">
+          <span className="standings-footer-note">Standings update every 2 seconds · Final result on completion</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Active Race Card ──────────────────────────────────────────────────────────
 function ActiveRaceCard({
   race,
   serverNow,
   onResult,
+  onClaimed,
 }: {
   race: ActiveRace;
   serverNow: number;
   onResult: (result: RaceResult) => void;
+  onClaimed: (id: number) => void;
 }) {
   const [secs, setSecs] = useState(Math.max(0, race.completes_at - serverNow));
   const [claiming, setClaiming] = useState(false);
+  const [showStandings, setShowStandings] = useState(false);
   const claimedRef = useRef(false);
 
   const claim = useCallback(async () => {
@@ -202,11 +356,12 @@ function ActiveRaceCard({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Claim failed");
       onResult(data as RaceResult);
+      onClaimed(race.id);
     } catch {
       claimedRef.current = false;
       setClaiming(false);
     }
-  }, [race.id, onResult]);
+  }, [race.id, onResult, onClaimed]);
 
   useEffect(() => {
     if (race.status === "completed") return;
@@ -224,35 +379,47 @@ function ActiveRaceCard({
     return () => clearInterval(iv);
   }, [race.status, claim]);
 
-  const done = race.status === "completed" || secs <= 0;
-
   return (
-    <div className="race-active-card">
-      <div className="race-active-pulse" />
-      <div className="race-active-info">
-        <div className="race-active-circuit">{race.circuit_name}</div>
-        <div className="race-active-crew">
-          <span>{race.car_name}</span>
-          <span className="race-active-sep">·</span>
-          <span>{race.driver_name}</span>
-          {race.engineer_name && (
-            <>
-              <span className="race-active-sep">·</span>
-              <span>{race.engineer_name}</span>
-            </>
+    <>
+      <div
+        className="race-active-card"
+        onClick={() => !claiming && setShowStandings(true)}
+        style={{ cursor: claiming ? "default" : "pointer" }}
+      >
+        <div className="race-active-pulse" />
+        <div className="race-active-info">
+          <div className="race-active-circuit">{race.circuit_name}</div>
+          <div className="race-active-crew">
+            <span>{race.car_name}</span>
+            <span className="race-active-sep">·</span>
+            <span>{race.driver_name}</span>
+            {race.engineer_name && (
+              <>
+                <span className="race-active-sep">·</span>
+                <span>{race.engineer_name}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="race-active-right">
+          {claiming ? (
+            <span className="race-claiming-badge">CLAIMING…</span>
+          ) : (
+            <div className="race-active-right-live">
+              <span className="race-countdown">{formatCountdown(secs)}</span>
+              <span className="race-view-standings">VIEW ›</span>
+            </div>
           )}
         </div>
       </div>
-      <div className="race-active-right">
-        {claiming ? (
-          <span className="race-claiming-badge">CLAIMING…</span>
-        ) : done ? (
-          <button className="race-claim-btn" onClick={claim}>CLAIM</button>
-        ) : (
-          <span className="race-countdown">{formatCountdown(secs)}</span>
-        )}
-      </div>
-    </div>
+      {showStandings && (
+        <RaceStandingsModal
+          race={race}
+          serverNow={serverNow}
+          onClose={() => setShowStandings(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -671,7 +838,10 @@ export default function RaceClient({ data }: { data: RacePageData }) {
   const [tab, setTab] = useState<"STANDARD" | "EVENT">("STANDARD");
   const [entryCircuit, setEntryCircuit] = useState<RaceCircuit | null>(null);
   const [raceResult, setRaceResult] = useState<RaceResult | null>(null);
+  const [claimedIds, setClaimedIds] = useState<Set<number>>(new Set());
   const userCredits = data.credits;
+
+  const visibleActiveRaces = data.activeRaces.filter((r) => !claimedIds.has(r.id));
 
   const activeCircuitIds = new Set(
     data.activeRaces
@@ -703,6 +873,10 @@ export default function RaceClient({ data }: { data: RacePageData }) {
 
   const handleResult = (result: RaceResult) => {
     setRaceResult(result);
+  };
+
+  const handleClaimed = (id: number) => {
+    setClaimedIds((prev) => new Set([...prev, id]));
   };
 
   return (
@@ -746,8 +920,8 @@ export default function RaceClient({ data }: { data: RacePageData }) {
               onClick={() => setTab(t)}
             >
               {t}
-              {t === "STANDARD" && data.activeRaces.length > 0 && (
-                <span className="race-tab-badge">{data.activeRaces.length}</span>
+              {t === "STANDARD" && visibleActiveRaces.length > 0 && (
+                <span className="race-tab-badge">{visibleActiveRaces.length}</span>
               )}
             </button>
           ))}
@@ -757,19 +931,20 @@ export default function RaceClient({ data }: { data: RacePageData }) {
         {tab === "STANDARD" && (
           <div className="race-tab-content">
             {/* Active Races */}
-            {data.activeRaces.length > 0 && (
+            {visibleActiveRaces.length > 0 && (
               <section className="race-section">
                 <div className="race-section-label">
                   <span className="race-section-dot" />
                   ACTIVE RACES
                 </div>
                 <div className="race-active-list">
-                  {data.activeRaces.map((r) => (
+                  {visibleActiveRaces.map((r) => (
                     <ActiveRaceCard
                       key={r.id}
                       race={r}
                       serverNow={data.serverNow}
                       onResult={handleResult}
+                      onClaimed={handleClaimed}
                     />
                   ))}
                 </div>
@@ -1262,19 +1437,6 @@ const RACE_STYLES = `
   color: rgba(255,255,255,0.5);
   animation: race-pulse 1s ease-in-out infinite;
 }
-.race-claim-btn {
-  font-family: var(--font-display, 'Bebas Neue'), sans-serif;
-  font-size: 14px;
-  letter-spacing: 0.1em;
-  color: #c9a84c;
-  border: 1px solid rgba(201,168,76,0.4);
-  background: rgba(201,168,76,0.1);
-  padding: 6px 14px;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.race-claim-btn:hover { background: rgba(201,168,76,0.2); }
 
 /* Event Placeholder */
 .race-event-placeholder {
@@ -1767,6 +1929,224 @@ const RACE_STYLES = `
 @media (min-width: 768px) { .race-toast { bottom: 24px; } }
 .race-toast-err { background: #2d0808; border: 1px solid #e8001c; color: #ff6b6b; }
 .race-toast-ok  { background: #0d2b0d; border: 1px solid #4ade80; color: #4ade80; }
+
+/* View standings hint */
+.race-active-right-live {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.race-view-standings {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: rgba(232,0,28,0.5);
+  transition: color 0.2s;
+}
+.race-active-card:hover .race-view-standings {
+  color: #e8001c;
+}
+
+/* Standings Modal */
+.standings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 150;
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .standings-overlay {
+    align-items: center;
+    padding: 16px;
+  }
+}
+.standings-modal {
+  background: #0e0e0e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: race-slide-up 0.35s cubic-bezier(0.16,1,0.3,1) both;
+}
+@media (min-width: 640px) {
+  .standings-modal {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    max-height: 80vh;
+  }
+}
+.standings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.standings-header-left {}
+.standings-circuit-name {
+  font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  line-height: 1;
+}
+.standings-meta {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.08em;
+  margin-top: 5px;
+}
+.standings-meta-sep { margin: 0 6px; color: rgba(255,255,255,0.15); }
+.standings-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.standings-countdown {
+  font-family: var(--font-mono, monospace);
+  font-size: 22px;
+  color: #e8001c;
+  letter-spacing: 0.05em;
+}
+.standings-close {
+  color: rgba(255,255,255,0.4);
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.standings-close:hover { color: #ffffff; }
+.standings-progress-track {
+  height: 2px;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.standings-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #e8001c, #ff4444);
+  transition: width 1s linear;
+}
+.standings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+.standings-feed-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 12px;
+}
+.standings-feed-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #e8001c;
+  animation: race-pulse 1.2s ease-in-out infinite;
+}
+.standings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.standings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #131313;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 3px;
+  transition: border-color 0.4s, background 0.4s;
+  animation: standings-row-in 0.3s ease both;
+}
+.standings-row-player {
+  background: rgba(232,0,28,0.05);
+  border-color: rgba(232,0,28,0.2) !important;
+}
+.standings-pos {
+  font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  min-width: 28px;
+  text-align: center;
+  line-height: 1;
+}
+.standings-bar-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.standings-entry-name {
+  font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 5px;
+}
+.standings-row-player .standings-entry-name { color: #ffffff; }
+.standings-bar-track {
+  height: 3px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.standings-bar-fill {
+  height: 100%;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  transition: width 1.8s cubic-bezier(0.4,0,0.2,1);
+}
+.standings-bar-player {
+  background: linear-gradient(90deg, #e8001c, #ff6b6b);
+}
+.standings-you-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: #e8001c;
+  border: 1px solid rgba(232,0,28,0.4);
+  padding: 2px 5px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.standings-footer {
+  padding: 10px 20px 14px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+.standings-footer-note {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  color: rgba(255,255,255,0.18);
+  letter-spacing: 0.06em;
+}
+
+@keyframes standings-row-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 
 /* Keyframes */
 @keyframes race-pulse {

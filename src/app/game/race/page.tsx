@@ -39,6 +39,8 @@ export interface ActiveRace {
   driver_name: string;
   car_name: string;
   engineer_name: string | null;
+  npc_field: string;
+  field_size: number;
 }
 
 export interface UserDriver {
@@ -128,7 +130,9 @@ export default async function RacePage() {
   const activeRaces = db.prepare(`
     SELECT r.id, r.circuit_id, r.driver_id, r.engineer_id, r.car_id,
            r.status, r.started_at, r.completes_at,
+           r.npc_field,
            c.name as circuit_name,
+           c.field_size,
            dt.name as driver_name,
            car.name as car_name,
            et.name as engineer_name
@@ -139,7 +143,7 @@ export default async function RacePage() {
     JOIN cars car ON car.id = r.car_id
     LEFT JOIN engineers e ON e.id = r.engineer_id
     LEFT JOIN engineer_templates et ON et.id = e.template_id
-    WHERE r.user_id = ? AND r.status IN ('scheduled', 'in_progress', 'completed')
+    WHERE r.user_id = ? AND r.status IN ('scheduled', 'in_progress')
     ORDER BY r.started_at DESC
     LIMIT 20
   `).all(session.id) as ActiveRace[];

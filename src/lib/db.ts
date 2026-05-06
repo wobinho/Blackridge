@@ -78,7 +78,7 @@ export async function initDb(): Promise<DbWrapper> {
 function applyColumnMigrations(database: import("sql.js").Database): void {
   const pending: Array<{ table: string; column: string; def: string }> = [
     // users
-    { table: "users",              column: "xgear",             def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "users",              column: "xgear",             def: "INTEGER NOT NULL DEFAULT 300" },
     // circuits
     { table: "circuits",           column: "archetype",         def: "TEXT" },
     { table: "circuits",           column: "min_speed",         def: "INTEGER NOT NULL DEFAULT 0" },

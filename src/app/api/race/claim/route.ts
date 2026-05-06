@@ -160,6 +160,17 @@ export async function POST(req: NextRequest) {
     db.prepare(`UPDATE engineers SET status = 'idle' WHERE id = ?`).run(race.engineer_id);
   }
 
+  // Build full final standings for display
+  const allEntries = [
+    { label: "YOU", isPlayer: true, score: playerScore },
+    ...npcScores.map((n) => ({ label: n.name, isPlayer: false, score: n.score })),
+  ].sort((a, b) => b.score - a.score);
+  const finalStandings = allEntries.map((e, i) => ({
+    position: i + 1,
+    label: e.label,
+    isPlayer: e.isPlayer,
+  }));
+
   const resultData = {
     position,
     field_size: race.field_size,
@@ -167,6 +178,7 @@ export async function POST(req: NextRequest) {
     xgear_earned: xgearEarned,
     prestige_earned: prestigeEarned,
     materials: earnedMaterials,
+    final_standings: finalStandings,
   };
 
   db.prepare(`UPDATE races SET status = 'completed', result = ?, completed_at = ? WHERE id = ?`)

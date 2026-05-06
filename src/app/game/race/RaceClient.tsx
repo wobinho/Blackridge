@@ -221,26 +221,41 @@ function RaceStandingsModal({
 
   const seededRand = useCallback(makeSeededRand(race.id * 13337), [race.id]);
 
-  const [standings, setStandings] = useState<StandingEntry[]>(() => {
-    const driverBoost = (race.driver_speed + race.driver_skill) * 0.12;
-    const engBoost = race.engineer_bonus * 0.05;
-    const playerRawScore = race.car_performance + driverBoost + engBoost;
-    const entries: StandingEntry[] = [
-      { label: `${race.car_name} · ${race.driver_name}`, isPlayer: true, score: playerRawScore, position: 0 },
-      ...npcs.map((n) => ({
-        label: n.name,
-        isPlayer: false,
-        score: npcPerformance(n),
-        position: 0,
-      })),
-    ];
-    return rank(entries);
-  });
+  const driverBoost = (race.driver_speed + race.driver_skill) * 0.12;
+  const engBoost = race.engineer_bonus * 0.05;
+  const playerBaseScore = race.car_performance + driverBoost + engBoost;
+
+  const baseScores = useRef<StandingEntry[]>([
+    { label: `${race.car_name} · ${race.driver_name}`, isPlayer: true, score: playerBaseScore, position: 0 },
+    ...npcs.map((n) => ({
+      label: n.name,
+      isPlayer: false,
+      score: npcPerformance(n),
+      position: 0,
+    })),
+  ]);
 
   function rank(entries: StandingEntry[]): StandingEntry[] {
     const sorted = [...entries].sort((a, b) => b.score - a.score);
     return sorted.map((e, i) => ({ ...e, position: i + 1 }));
   }
+
+  const [standings, setStandings] = useState<StandingEntry[]>(() => rank(baseScores.current));
+
+  const tickRef = useRef(0);
+  useEffect(() => {
+    const iv = setInterval(() => {
+      tickRef.current += 1;
+      const tick = tickRef.current;
+      const jittered = baseScores.current.map((e, idx) => {
+        const r = seededRand(tick * 100 + idx);
+        const jitterPct = e.isPlayer ? 0.06 : 0.10;
+        return { ...e, score: e.score * (1 + (r * 2 - 1) * jitterPct) };
+      });
+      setStandings(rank(jittered));
+    }, 2000);
+    return () => clearInterval(iv);
+  }, [seededRand]);
 
   const progressPct = Math.round(progress * 100);
   const lap = Math.ceil(progress * (race.field_size > 6 ? 5 : 3));
@@ -420,6 +435,7 @@ type RaceResult = {
   xgear_earned: number;
   prestige_earned: number;
   materials: Array<{ name: string; qty: number }>;
+  final_standings?: Array<{ position: number; label: string; isPlayer: boolean }>;
 };
 
 const POSITION_LABELS: Record<number, string> = { 1: "1ST", 2: "2ND", 3: "3RD" };
@@ -446,43 +462,64 @@ function ResultOverlay({ result, onClose }: { result: RaceResult; onClose: () =>
 
         <div className="race-result-divider" />
 
-        {isPodium ? (
-          <div className="race-result-rewards">
-            {result.credits_earned > 0 && (
-              <div className="race-result-reward-item">
-                <span className="race-result-reward-label">CREDITS</span>
-                <span className="race-result-reward-val" style={{ color: "#c9a84c" }}>
-                  +{result.credits_earned.toLocaleString()} CR
-                </span>
-              </div>
-            )}
-            {result.xgear_earned > 0 && (
-              <div className="race-result-reward-item">
-                <span className="race-result-reward-label">XGEAR</span>
-                <span className="race-result-reward-val" style={{ color: "#818cf8" }}>
-                  +{result.xgear_earned} XG
-                </span>
-              </div>
-            )}
-            {result.prestige_earned > 0 && (
-              <div className="race-result-reward-item">
-                <span className="race-result-reward-label">PRESTIGE</span>
-                <span className="race-result-reward-val" style={{ color: "#e8001c" }}>
-                  +{result.prestige_earned} PST
-                </span>
-              </div>
-            )}
-            {result.materials?.map((m, i) => (
-              <div key={i} className="race-result-reward-item">
-                <span className="race-result-reward-label">{m.name.toUpperCase()}</span>
-                <span className="race-result-reward-val">×{m.qty}</span>
-              </div>
-            ))}
+        {/* Final standings */}
+        {result.final_standings && result.final_standings.length > 0 && (
+          <div className="race-result-standings">
+            <div className="race-result-standings-label">FINAL STANDINGS</div>
+            <div className="race-result-standings-list">
+              {result.final_standings.map((entry) => {
+                const pColor = entry.position === 1 ? "#c9a84c" : entry.position === 2 ? "#b0bec5" : entry.position === 3 ? "#cd7f32" : "rgba(255,255,255,0.25)";
+                return (
+                  <div
+                    key={entry.position}
+                    className={`race-result-standing-row ${entry.isPlayer ? "race-result-standing-player" : ""}`}
+                  >
+                    <span className="race-result-standing-pos" style={{ color: pColor }}>P{entry.position}</span>
+                    <span className="race-result-standing-name">{entry.label}</span>
+                    {entry.isPlayer && <span className="race-result-standing-you">YOU</span>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        ) : (
-          <div style={{ textAlign: "center", padding: "16px 0 20px", color: "rgba(255,255,255,0.25)", fontSize: "12px", fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}>
-            FINISHED P{result.position} — NO REWARD THIS TIME
-          </div>
+        )}
+
+        {isPodium && (
+          <>
+            <div className="race-result-divider" style={{ marginTop: 16 }} />
+            <div className="race-result-rewards">
+              {result.credits_earned > 0 && (
+                <div className="race-result-reward-item">
+                  <span className="race-result-reward-label">CREDITS</span>
+                  <span className="race-result-reward-val" style={{ color: "#c9a84c" }}>
+                    +{result.credits_earned.toLocaleString()} CR
+                  </span>
+                </div>
+              )}
+              {result.xgear_earned > 0 && (
+                <div className="race-result-reward-item">
+                  <span className="race-result-reward-label">XGEAR</span>
+                  <span className="race-result-reward-val" style={{ color: "#818cf8" }}>
+                    +{result.xgear_earned} XG
+                  </span>
+                </div>
+              )}
+              {result.prestige_earned > 0 && (
+                <div className="race-result-reward-item">
+                  <span className="race-result-reward-label">PRESTIGE</span>
+                  <span className="race-result-reward-val" style={{ color: "#e8001c" }}>
+                    +{result.prestige_earned} PST
+                  </span>
+                </div>
+              )}
+              {result.materials?.map((m, i) => (
+                <div key={i} className="race-result-reward-item">
+                  <span className="race-result-reward-label">{m.name.toUpperCase()}</span>
+                  <span className="race-result-reward-val">×{m.qty}</span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         <button className="race-result-close" onClick={onClose}>CLOSE</button>
@@ -1492,7 +1529,9 @@ const RACE_STYLES = `
   border-radius: 4px;
   padding: 32px 28px;
   width: 100%;
-  max-width: 400px;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
   text-align: center;
 }
 .race-result-slide-up {
@@ -1549,6 +1588,68 @@ const RACE_STYLES = `
   color: #ffffff;
   letter-spacing: -0.01em;
 }
+/* Result standings */
+.race-result-standings {
+  margin-bottom: 4px;
+}
+.race-result-standings-label {
+  font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.25);
+  margin-bottom: 8px;
+  text-align: left;
+}
+.race-result-standings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.race-result-standing-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.03);
+}
+.race-result-standing-player {
+  background: rgba(232,0,28,0.06);
+  border: 1px solid rgba(232,0,28,0.2);
+}
+.race-result-standing-pos {
+  font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+  font-size: 14px;
+  min-width: 26px;
+  text-align: center;
+}
+.race-result-standing-name {
+  font-family: var(--font-display, 'Bebas Neue'), sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.6);
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.race-result-standing-player .race-result-standing-name {
+  color: #ffffff;
+}
+.race-result-standing-you {
+  font-family: var(--font-mono, monospace);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: #e8001c;
+  border: 1px solid rgba(232,0,28,0.4);
+  padding: 2px 5px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 .race-result-close {
   width: 100%;
   background: rgba(255,255,255,0.06);

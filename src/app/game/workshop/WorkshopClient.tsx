@@ -1852,50 +1852,111 @@ export default function WorkshopClient({ data }: { data: WorkshopPageData }) {
           {/* ── INVENTORY TAB ───────────────────────────── */}
           {activeTab === "INVENTORY" && (
             <div className="animate-fade-up">
-              <div className="flex items-center justify-between mb-4">
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--color-text-muted)" }}>
-                  {data.inventory.length} / {data.upgrades.inventory_size * 5 + 15} PARTS
-                </span>
-              </div>
-
-              {/* Category filter */}
-              <div className="ws-cat-scroll mb-4">
-                {invCategories.map((cat) => (
-                  <button
-                    key={cat}
-                    className="ws-cat-btn"
-                    style={{
-                      color: invFilter === cat ? "white" : "var(--color-text-muted)",
-                      borderColor: invFilter === cat ? "#e8001c" : "transparent",
-                      background: invFilter === cat ? "rgba(232,0,28,0.1)" : "transparent",
-                    }}
-                    onClick={() => setInvFilter(cat)}
-                  >
-                    {cat === "all" ? "ALL" : categoryLabel(cat)}
-                  </button>
-                ))}
-              </div>
-
-              {filteredInventory.length === 0 ? (
-                <div className="ws-empty-state">
-                  <div className="ws-empty-icon">
-                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none" stroke="currentColor" strokeWidth="1">
-                      <rect x="12" y="20" width="40" height="30" rx="1" />
-                      <path d="M20 20v-4a4 4 0 018 0v4M36 20v-4a4 4 0 018 0v4" />
-                    </svg>
-                  </div>
-                  <p className="ws-empty-title">
-                    {invFilter === "all" ? "INVENTORY EMPTY" : `NO ${invFilter.toUpperCase()} PARTS`}
-                  </p>
-                  <p className="ws-empty-sub">Craft parts in the Develop tab to fill your inventory.</p>
+              {/* ─── PARTS SECTION ─── */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <span style={{ fontFamily: "var(--font-display)", fontSize: "13px", letterSpacing: "0.06em", color: "white" }}>
+                    PARTS
+                  </span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--color-text-muted)" }}>
+                    {data.inventory.length} / {data.upgrades.inventory_size * 5 + 15}
+                  </span>
                 </div>
-              ) : (
-                <div className="ws-inv-grid-v2">
-                  {filteredInventory.map((part, i) => (
-                    <InventoryCard key={part.id} part={part} index={i} />
+
+                {/* Category filter */}
+                <div className="ws-cat-scroll mb-4">
+                  {invCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      className="ws-cat-btn"
+                      style={{
+                        color: invFilter === cat ? "white" : "var(--color-text-muted)",
+                        borderColor: invFilter === cat ? "#e8001c" : "transparent",
+                        background: invFilter === cat ? "rgba(232,0,28,0.1)" : "transparent",
+                      }}
+                      onClick={() => setInvFilter(cat)}
+                    >
+                      {cat === "all" ? "ALL" : categoryLabel(cat)}
+                    </button>
                   ))}
                 </div>
-              )}
+
+                {filteredInventory.length === 0 ? (
+                  <div className="ws-empty-state">
+                    <div className="ws-empty-icon">
+                      <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none" stroke="currentColor" strokeWidth="1">
+                        <rect x="12" y="20" width="40" height="30" rx="1" />
+                        <path d="M20 20v-4a4 4 0 018 0v4M36 20v-4a4 4 0 018 0v4" />
+                      </svg>
+                    </div>
+                    <p className="ws-empty-title">
+                      {invFilter === "all" ? "NO PARTS" : `NO ${invFilter.toUpperCase()} PARTS`}
+                    </p>
+                    <p className="ws-empty-sub">Craft parts in the Develop tab to fill your inventory.</p>
+                  </div>
+                ) : (
+                  <div className="ws-inv-grid-v2">
+                    {filteredInventory.map((part, i) => (
+                      <InventoryCard key={part.id} part={part} index={i} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ─── MATERIALS SECTION ─── */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span style={{ fontFamily: "var(--font-display)", fontSize: "13px", letterSpacing: "0.06em", color: "white" }}>
+                    MATERIALS
+                  </span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--color-text-muted)" }}>
+                    {data.materials.reduce((sum, m) => sum + m.quantity, 0)} / {data.upgrades.inventory_mats_size * 100 + 200}
+                  </span>
+                </div>
+
+                {data.materials.length === 0 ? (
+                  <div className="ws-empty-state">
+                    <div className="ws-empty-icon">
+                      <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none" stroke="currentColor" strokeWidth="1">
+                        <circle cx="32" cy="32" r="20" />
+                        <path d="M32 22v20M22 32h20" />
+                      </svg>
+                    </div>
+                    <p className="ws-empty-title">NO MATERIALS</p>
+                    <p className="ws-empty-sub">Find materials in the Market or from racing.</p>
+                  </div>
+                ) : (
+                  <div className="ws-materials-grid">
+                    {data.materials.map((material) => (
+                      <div
+                        key={material.id}
+                        className="ws-material-card"
+                      >
+                        <div className="ws-material-art">
+                          <Image
+                            src={material.art ? `/assets/materials/${material.art}.png` : `/assets/materials/placeholder-1x1.png`}
+                            alt={material.name}
+                            width={64}
+                            height={64}
+                            style={{ objectFit: "contain" }}
+                          />
+                        </div>
+                        <div className="ws-material-info">
+                          <p className="ws-material-name">{material.name}</p>
+                          <p className="ws-material-quantity">
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--color-text-muted)" }}>
+                              QTY:
+                            </span>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: "13px", color: "white", marginLeft: "6px" }}>
+                              {material.quantity}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2569,6 +2630,68 @@ const WORKSHOP_STYLES = `
   .ws-inv-stat-key {
     font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.08em;
     color: var(--color-text-subtle); text-transform: uppercase;
+  }
+
+  /* ── Materials Grid ──────────────────────────── */
+  .ws-materials-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  @media (min-width: 480px) { .ws-materials-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 768px) { .ws-materials-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
+  @media (min-width: 1024px) { .ws-materials-grid { grid-template-columns: repeat(5, 1fr); } }
+
+  .ws-material-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 2px;
+    background: rgba(255,255,255,0.02);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: default;
+  }
+  .ws-material-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+  }
+  .ws-material-art {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.04);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .ws-material-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .ws-material-info {
+    width: 100%;
+    text-align: center;
+  }
+  .ws-material-name {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: white;
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .ws-material-quantity {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-text-muted);
   }
 
   /* ── Category Filter ─────────────────────────── */

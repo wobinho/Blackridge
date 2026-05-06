@@ -86,14 +86,11 @@ export async function register(data: {
 
     const userId = result.lastInsertRowid;
 
-    // Give starting materials
-    const materialIds = [1, 2, 3, 4, 5];
-    const qtys = [5, 10, 2, 8, 6];
-    for (let i = 0; i < materialIds.length; i++) {
-      db.prepare(
-        "INSERT OR REPLACE INTO inventory_materials (user_id, material_id, quantity) VALUES (?, ?, ?)"
-      ).run(userId, materialIds[i], qtys[i]);
-    }
+    // Give starting credits
+    db.prepare("UPDATE users SET credits = 20000 WHERE id = ?").run(userId);
+
+    // Create workshop upgrades row
+    db.prepare("INSERT INTO workshop_upgrades (user_id) VALUES (?)").run(userId);
 
     // Give starting driver (common rarity)
     const starterTemplate = db
@@ -104,6 +101,17 @@ export async function register(data: {
       db.prepare(
         "INSERT INTO drivers (user_id, template_id, speed, skill, stamina, aggression) SELECT ?, id, base_speed, base_skill, base_stamina, base_aggression FROM driver_templates WHERE id = ?"
       ).run(userId, starterTemplate.id);
+    }
+
+    // Give starting blueprints (2× CC-1, 2× SC-1)
+    const cc1 = db.prepare("SELECT id FROM car_templates WHERE model_code = 'CC-1'").get() as { id: number } | undefined;
+    const sc1 = db.prepare("SELECT id FROM car_templates WHERE model_code = 'SC-1'").get() as { id: number } | undefined;
+
+    if (cc1) {
+      db.prepare("INSERT INTO user_blueprints (user_id, car_template_id, quantity) VALUES (?, ?, 2)").run(userId, cc1.id);
+    }
+    if (sc1) {
+      db.prepare("INSERT INTO user_blueprints (user_id, car_template_id, quantity) VALUES (?, ?, 2)").run(userId, sc1.id);
     }
 
     return { success: true, userId };

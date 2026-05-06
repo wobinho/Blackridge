@@ -3,6 +3,7 @@
 import { getSession } from "@/lib/auth";
 import { initDb } from "@/lib/db";
 import { seedDatabase } from "@/lib/seed";
+import { getActualValue } from "@/lib/upgrades";
 import { redirect } from "next/navigation";
 import WorkshopClient from "./WorkshopClient";
 
@@ -108,6 +109,7 @@ export interface WorkshopUpgrades {
   develop_slots: number;
   develop_speed: number;
   inventory_size: number;
+  inventory_mats_size: number;
   engineer_cap: number;
   driver_cap: number;
   garage_cap: number;
@@ -174,13 +176,13 @@ export default async function WorkshopPage() {
   ).all() as PartTemplate[];
 
   const upgradesRow = db.prepare(
-    `SELECT develop_slots, develop_speed, inventory_size, engineer_cap, driver_cap, garage_cap, market_mat_slots, market_mat_rarity
+    `SELECT develop_slots, develop_speed, inventory_size, inventory_mats_size, engineer_cap, driver_cap, garage_cap, market_mat_slots, market_mat_rarity
      FROM workshop_upgrades WHERE user_id = ?`
   ).get(session.id) as WorkshopUpgrades | undefined;
 
   const upgrades: WorkshopUpgrades = upgradesRow ?? {
-    develop_slots: 2, develop_speed: 1, inventory_size: 20,
-    engineer_cap: 3, driver_cap: 5, garage_cap: 10,
+    develop_slots: 0, develop_speed: 0, inventory_size: 0, inventory_mats_size: 0,
+    engineer_cap: 0, driver_cap: 0, garage_cap: 0,
     market_mat_slots: 0, market_mat_rarity: 0,
   };
 
@@ -244,7 +246,8 @@ export default async function WorkshopPage() {
   const jobsBySlot = new Map(activeJobs.map((j) => [j.slot_index, j]));
   const carBuildsBySlot = new Map(rawCarBuilds.map((b) => [b.slot_index, b]));
 
-  const craftSlots: CraftSlot[] = Array.from({ length: upgrades.develop_slots }, (_, i) => {
+  const maxSlots = getActualValue("develop_slots", upgrades.develop_slots);
+  const craftSlots: CraftSlot[] = Array.from({ length: maxSlots }, (_, i) => {
     const job = jobsBySlot.get(i);
     const carBuild = carBuildsBySlot.get(i);
 

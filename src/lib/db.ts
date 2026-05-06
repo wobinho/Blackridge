@@ -95,6 +95,7 @@ function applyColumnMigrations(database: import("sql.js").Database): void {
     // workshop upgrades
     { table: "workshop_upgrades",  column: "market_mat_slots",  def: "INTEGER NOT NULL DEFAULT 0" },
     { table: "workshop_upgrades",  column: "market_mat_rarity", def: "INTEGER NOT NULL DEFAULT 0" },
+    { table: "workshop_upgrades",  column: "inventory_mats_size", def: "INTEGER NOT NULL DEFAULT 0" },
     // recruit shards currency
     { table: "users",              column: "recruit_shards",    def: "INTEGER NOT NULL DEFAULT 0" },
     // materials

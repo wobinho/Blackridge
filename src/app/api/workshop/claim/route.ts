@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { initDb } from "@/lib/db";
 import { seedDatabase, rollPartRarity, PART_RARITY_STAT_MULT, PART_RARITY_PRICE_MULT } from "@/lib/seed";
+import { getActualValue } from "@/lib/upgrades";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -65,6 +66,20 @@ export async function POST(req: NextRequest) {
   if (!tmpl) return NextResponse.json({ error: "Part template not found" }, { status: 500 });
 
   const r = (v: number) => Math.round(v * statMult);
+
+  // Check parts inventory cap
+  const upgrades = db.prepare(
+    `SELECT inventory_size FROM workshop_upgrades WHERE user_id = ?`
+  ).get(session.id) as { inventory_size: number } | undefined;
+  const inventorySizeLevel = upgrades?.inventory_size ?? 0;
+  const partsCap = getActualValue("inventory_size", inventorySizeLevel);
+  const currentPartCount = (db.prepare(
+    `SELECT COUNT(*) as cnt FROM inventory_parts WHERE user_id = ? AND status = 'inventory'`
+  ).get(session.id) as { cnt: number }).cnt;
+
+  if (currentPartCount >= partsCap) {
+    return NextResponse.json({ error: "Parts inventory is full", cap: partsCap, current: currentPartCount }, { status: 400 });
+  }
 
   // Insert a new inventory_parts instance (each craft = one unique instance)
   db.prepare(

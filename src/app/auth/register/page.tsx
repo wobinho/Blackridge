@@ -282,9 +282,9 @@ export default function RegisterPage() {
                   </p>
                   <div className="space-y-2">
                     {[
-                      { label: "Credits", value: "5,000 CR" },
-                      { label: "Starter Driver", value: "1× Common" },
-                      { label: "Materials", value: "Starting Kit" },
+                      { label: "Credits", value: "20,000 CR" },
+                      { label: "XGEAR", value: "200" },
+                      { label: "Blueprints", value: "2× CC-1, 2× SC-1" },
                     ].map((item) => (
                       <div key={item.label} className="flex justify-between text-sm">
                         <span className="text-[#555]">{item.label}</span>

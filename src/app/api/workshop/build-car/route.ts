@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
   const upgrades = db.prepare(
     `SELECT develop_slots FROM workshop_upgrades WHERE user_id = ?`
   ).get(session.id) as { develop_slots: number } | undefined;
-  const maxSlots = upgrades?.develop_slots ?? 2;
+  const slotsLevel = upgrades?.develop_slots ?? 0;
+  const maxSlots = 2 + slotsLevel * 1;
 
   if (slot_index < 0 || slot_index >= maxSlots) {
     return NextResponse.json({ error: "Invalid slot index." }, { status: 400 });

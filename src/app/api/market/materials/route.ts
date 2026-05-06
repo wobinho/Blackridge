@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { initDb } from "@/lib/db";
 import { seedDatabase } from "@/lib/seed";
+import { getActualValue } from "@/lib/upgrades";
 
 // Material IDs match seed order: 1=Steel,2=Aluminum,3=Carbon,4=Titanium,5=Polymer,6=Hardware,7=Electronics,8=Compounds,9=Fluids,10=Trims
 // 12-slot pool configs (slots 0-3 base, 4-11 unlockable via upgrades)
@@ -172,6 +173,20 @@ export async function POST(req: NextRequest) {
 
   if (user.credits < totalCost) {
     return NextResponse.json({ error: "Insufficient credits", required: totalCost, have: user.credits }, { status: 400 });
+  }
+
+  // Check materials inventory cap
+  const allUpgrades = db.prepare(
+    `SELECT inventory_mats_size FROM workshop_upgrades WHERE user_id = ?`
+  ).get(session.id) as { inventory_mats_size: number } | undefined;
+  const matsSizeLevel = allUpgrades?.inventory_mats_size ?? 0;
+  const matsCap = getActualValue("inventory_mats_size", matsSizeLevel);
+  const currentMatCount = (db.prepare(
+    `SELECT COALESCE(SUM(quantity), 0) as total FROM inventory_materials WHERE user_id = ?`
+  ).get(session.id) as { total: number }).total;
+
+  if (currentMatCount + quantity > matsCap) {
+    return NextResponse.json({ error: "Materials inventory is full", cap: matsCap, current: currentMatCount }, { status: 400 });
   }
 
   db.prepare(`UPDATE users SET credits = credits - ? WHERE id = ?`).run(totalCost, session.id);

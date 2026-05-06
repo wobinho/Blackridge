@@ -366,16 +366,17 @@ CREATE TABLE IF NOT EXISTS races (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS workshop_upgrades (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-  develop_slots     INTEGER NOT NULL DEFAULT 2,
-  develop_speed     INTEGER NOT NULL DEFAULT 1,
-  inventory_size    INTEGER NOT NULL DEFAULT 20,
-  engineer_cap      INTEGER NOT NULL DEFAULT 3,
-  driver_cap        INTEGER NOT NULL DEFAULT 5,
-  garage_cap        INTEGER NOT NULL DEFAULT 10,
-  market_mat_slots  INTEGER NOT NULL DEFAULT 0,
-  market_mat_rarity INTEGER NOT NULL DEFAULT 0
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+  develop_slots       INTEGER NOT NULL DEFAULT 0,
+  develop_speed       INTEGER NOT NULL DEFAULT 0,
+  inventory_size      INTEGER NOT NULL DEFAULT 0,
+  inventory_mats_size INTEGER NOT NULL DEFAULT 0,
+  engineer_cap        INTEGER NOT NULL DEFAULT 0,
+  driver_cap          INTEGER NOT NULL DEFAULT 0,
+  garage_cap          INTEGER NOT NULL DEFAULT 0,
+  market_mat_slots    INTEGER NOT NULL DEFAULT 0,
+  market_mat_rarity   INTEGER NOT NULL DEFAULT 0
 );
 
 -- ============================================================

@@ -59,6 +59,9 @@ export async function POST(req: NextRequest) {
   const db = await initDb();
   await seedDatabase(db);
 
+  // Ensure workshop_upgrades row exists
+  db.prepare("INSERT OR IGNORE INTO workshop_upgrades (user_id) VALUES (?)").run(session.id);
+
   const user = db.prepare(`SELECT credits, xgear FROM users WHERE id = ?`).get(session.id) as { credits: number; xgear: number } | undefined;
   if (!user || user.xgear < ROLL_COST_XGEAR) {
     return NextResponse.json({ error: "Insufficient XGEAR", required: ROLL_COST_XGEAR, have: user?.xgear ?? 0 }, { status: 400 });
@@ -169,7 +172,8 @@ export async function PUT(req: NextRequest) {
 
   // Check cap
   const upgrades = db.prepare(`SELECT ${capField} FROM workshop_upgrades WHERE user_id = ?`).get(session.id) as Record<string, number> | undefined;
-  const cap = upgrades?.[capField] ?? (isDriverBanner ? 5 : 3);
+  const capLevel = upgrades?.[capField] ?? 0;
+  const cap = 4 + capLevel * 2;
   const currentCount = (db.prepare(`SELECT COUNT(*) as cnt FROM ${instanceTable} WHERE user_id = ?`).get(session.id) as { cnt: number }).cnt;
 
   if (currentCount >= cap) {

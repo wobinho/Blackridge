@@ -63,6 +63,21 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
     db.prepare("INSERT INTO meta (key, value) VALUES ('workshop_upgrades_backfill_v1', '1')").run();
   }
 
+  // Backfill: migrate workshop_upgrades from absolute values to upgrade levels
+  const workshopLevelMigration = db.prepare("SELECT value FROM meta WHERE key = 'workshop_upgrades_level_migration_v1'").get();
+  if (!workshopLevelMigration) {
+    db.prepare(`
+      UPDATE workshop_upgrades SET
+        develop_slots = MAX(0, develop_slots - 2),
+        develop_speed = MAX(0, develop_speed - 1),
+        inventory_size = 0,
+        engineer_cap = MAX(0, (engineer_cap - 4) / 2),
+        driver_cap = MAX(0, (driver_cap - 4) / 2),
+        garage_cap = MAX(0, (garage_cap - 10) / 5)
+    `).run();
+    db.prepare("INSERT INTO meta (key, value) VALUES ('workshop_upgrades_level_migration_v1', '1')").run();
+  }
+
   // Backfill: ensure gacha_pity rows exist for all users
   const gachaPityBackfill = db.prepare("SELECT value FROM meta WHERE key = 'gacha_pity_backfill_v1'").get();
   if (!gachaPityBackfill) {

@@ -25,8 +25,9 @@ export async function POST(req: NextRequest) {
     `SELECT develop_slots, develop_speed FROM workshop_upgrades WHERE user_id = ?`
   ).get(session.id) as { develop_slots: number; develop_speed: number } | undefined;
 
-  const maxSlots = upgrades?.develop_slots ?? 2;
-  const speedLevel = upgrades?.develop_speed ?? 1;
+  const slotsLevel = upgrades?.develop_slots ?? 0;
+  const speedLevel = upgrades?.develop_speed ?? 0;
+  const maxSlots = 2 + slotsLevel * 1;
 
   if (slot_index < 0 || slot_index >= maxSlots) {
     return NextResponse.json({ error: "Invalid slot index" }, { status: 400 });
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
   }
 
   const engineerReduction = craftSpeedBonus > 0 ? (craftSpeedBonus / 10) * 0.05 : 0;
-  const upgradeReduction = (speedLevel - 1) * 0.10;
+  const upgradeReduction = speedLevel * 0.05;
   const totalReduction = Math.min(0.75, engineerReduction + upgradeReduction);
   const craftSeconds = Math.max(30, Math.round(part.craft_time * (1 - totalReduction)));
 

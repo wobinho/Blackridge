@@ -127,6 +127,9 @@ export async function POST(req: NextRequest) {
   const db = await initDb();
   await seedDatabase(db);
 
+  // Ensure workshop_upgrades row exists
+  db.prepare("INSERT OR IGNORE INTO workshop_upgrades (user_id) VALUES (?)").run(session.id);
+
   const slot = db.prepare(
     `SELECT * FROM shard_market_slots WHERE slot_type = ? AND slot_index = ?`
   ).get(slot_type, slot_index) as { template_id: number; rarity: string; price_shards: number } | undefined;
@@ -144,7 +147,8 @@ export async function POST(req: NextRequest) {
 
   // Check cap
   const upgrades = db.prepare(`SELECT ${capField} FROM workshop_upgrades WHERE user_id = ?`).get(session.id) as Record<string, number> | undefined;
-  const cap = upgrades?.[capField] ?? (slot_type === "driver" ? 5 : 3);
+  const capLevel = upgrades?.[capField] ?? 0;
+  const cap = 4 + capLevel * 2;
   const currentCount = (db.prepare(`SELECT COUNT(*) as cnt FROM ${instanceTable} WHERE user_id = ?`).get(session.id) as { cnt: number }).cnt;
 
   if (currentCount >= cap) {

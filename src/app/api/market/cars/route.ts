@@ -88,7 +88,8 @@ export async function POST(req: NextRequest) {
   if (listing.seller_id === session.id) return NextResponse.json({ error: "Cannot buy your own car" }, { status: 400 });
 
   const upgrades = db.prepare(`SELECT garage_cap FROM workshop_upgrades WHERE user_id = ?`).get(session.id) as { garage_cap: number } | undefined;
-  const cap = upgrades?.garage_cap ?? 10;
+  const garageLevel = upgrades?.garage_cap ?? 0;
+  const cap = 10 + garageLevel * 5;
   const carCount = (db.prepare(`SELECT COUNT(*) as cnt FROM cars WHERE user_id = ? AND status != 'sold'`).get(session.id) as { cnt: number }).cnt;
 
   if (carCount >= cap) {

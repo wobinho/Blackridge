@@ -73,7 +73,8 @@ export default async function DriversPage() {
     `SELECT driver_cap FROM workshop_upgrades WHERE user_id = ?`
   ).get(session.id) as { driver_cap: number } | undefined;
 
-  const driverCap = upgradesRow?.driver_cap ?? 5;
+  const driverCapLevel = upgradesRow?.driver_cap ?? 0;
+  const driverCap = 4 + driverCapLevel * 2;
 
   return <DriversClient data={{ drivers, driverCap }} />;
 }

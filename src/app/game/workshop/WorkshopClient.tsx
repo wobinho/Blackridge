@@ -2129,6 +2129,17 @@ const WORKSHOP_STYLES = `
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;
+  }
+  @media (max-width: 640px) {
+    .ws-tab-bar {
+      padding: 0 8px;
+    }
+    .ws-tab-btn {
+      font-size: 12px;
+      padding: 10px 12px;
+      letter-spacing: 0.05em;
+    }
   }
   .ws-tab-btn:hover:not(.ws-tab-active) { color: rgba(255,255,255,0.6); }
   .ws-tab-active {

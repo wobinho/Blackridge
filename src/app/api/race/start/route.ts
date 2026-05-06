@@ -53,13 +53,6 @@ export async function POST(req: NextRequest) {
   if (!car) return NextResponse.json({ error: "Car not found" }, { status: 404 });
   if (car.status !== "garage") return NextResponse.json({ error: "Car is not available" }, { status: 400 });
 
-  // Check min requirements
-  if (circuit.min_speed > 0 && car.stat_speed < circuit.min_speed) {
-    return NextResponse.json({ error: `Car speed (${car.stat_speed}) below circuit minimum (${circuit.min_speed})` }, { status: 400 });
-  }
-  if (circuit.min_handling > 0 && car.stat_handling < circuit.min_handling) {
-    return NextResponse.json({ error: `Car handling (${car.stat_handling}) below circuit minimum (${circuit.min_handling})` }, { status: 400 });
-  }
 
   // Validate engineer if provided
   if (engineer_id) {

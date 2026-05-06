@@ -297,6 +297,35 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
     db.prepare("INSERT INTO meta (key, value) VALUES ('workshop_upgrades_level_migration_v1', '1')").run();
   }
 
+  // Backfill: migrate garage_cap from old formula (base=10, inc=5) to new (base=20, inc=10)
+  // Old value at level L = 10 + L*5. New level = MAX(0, floor((old_value - 20) / 10))
+  // Since levels stored as upgrade counts (not absolute values), old level L → new level = MAX(0, floor((10 + L*5 - 20) / 10)) = MAX(0, floor((L*5 - 10) / 10))
+  const garageMigration = db.prepare("SELECT value FROM meta WHERE key = 'garage_cap_formula_migration_v1'").get();
+  if (!garageMigration) {
+    db.prepare(`
+      UPDATE workshop_upgrades SET
+        garage_cap = MAX(0, (10 + garage_cap * 5 - 20) / 10)
+    `).run();
+    db.prepare("INSERT INTO meta (key, value) VALUES ('garage_cap_formula_migration_v1', '1')").run();
+  }
+
+  // Backfill: hard-reset all workshop_upgrade levels to 0 (corrects any corruption from old migrations)
+  const workshopResetV2 = db.prepare("SELECT value FROM meta WHERE key = 'workshop_upgrades_reset_v2'").get();
+  if (!workshopResetV2) {
+    db.prepare(`
+      UPDATE workshop_upgrades SET
+        develop_slots = 0,
+        develop_speed = 0,
+        inventory_size = 0,
+        inventory_mats_size = 0,
+        engineer_cap = 0,
+        driver_cap = 0,
+        garage_cap = 0,
+        market_mat_slots = 0
+    `).run();
+    db.prepare("INSERT INTO meta (key, value) VALUES ('workshop_upgrades_reset_v2', '1')").run();
+  }
+
   // Backfill: ensure gacha_pity rows exist for all users
   const gachaPityBackfill = db.prepare("SELECT value FROM meta WHERE key = 'gacha_pity_backfill_v1'").get();
   if (!gachaPityBackfill) {

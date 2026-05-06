@@ -114,7 +114,6 @@ export interface WorkshopUpgrades {
   driver_cap: number;
   garage_cap: number;
   market_mat_slots: number;
-  market_mat_rarity: number;
 }
 
 export interface CarBlueprint {
@@ -176,14 +175,14 @@ export default async function WorkshopPage() {
   ).all() as PartTemplate[];
 
   const upgradesRow = db.prepare(
-    `SELECT develop_slots, develop_speed, inventory_size, inventory_mats_size, engineer_cap, driver_cap, garage_cap, market_mat_slots, market_mat_rarity
+    `SELECT develop_slots, develop_speed, inventory_size, inventory_mats_size, engineer_cap, driver_cap, garage_cap, market_mat_slots
      FROM workshop_upgrades WHERE user_id = ?`
   ).get(session.id) as WorkshopUpgrades | undefined;
 
   const upgrades: WorkshopUpgrades = upgradesRow ?? {
     develop_slots: 0, develop_speed: 0, inventory_size: 0, inventory_mats_size: 0,
     engineer_cap: 0, driver_cap: 0, garage_cap: 0,
-    market_mat_slots: 0, market_mat_rarity: 0,
+    market_mat_slots: 0,
   };
 
   const activeJobs = db.prepare(

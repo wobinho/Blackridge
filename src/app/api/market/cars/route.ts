@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { initDb } from "@/lib/db";
 import { seedDatabase } from "@/lib/seed";
+import { getActualValue } from "@/lib/upgrades";
 
 export async function GET() {
   const session = await getSession();
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
 
   const upgrades = db.prepare(`SELECT garage_cap FROM workshop_upgrades WHERE user_id = ?`).get(session.id) as { garage_cap: number } | undefined;
   const garageLevel = upgrades?.garage_cap ?? 0;
-  const cap = 10 + garageLevel * 5;
+  const cap = getActualValue("garage_cap", garageLevel);
   const carCount = (db.prepare(`SELECT COUNT(*) as cnt FROM cars WHERE user_id = ? AND status != 'sold'`).get(session.id) as { cnt: number }).cnt;
 
   if (carCount >= cap) {

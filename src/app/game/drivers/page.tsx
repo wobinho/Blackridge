@@ -6,6 +6,7 @@ import { seedDatabase } from "@/lib/seed";
 import { resolveArt } from "@/lib/resolveArt";
 import { redirect } from "next/navigation";
 import DriversClient from "./DriversClient";
+import { getActualValue } from "@/lib/upgrades";
 
 export interface DriversPageData {
   drivers: DriverFull[];
@@ -74,7 +75,7 @@ export default async function DriversPage() {
   ).get(session.id) as { driver_cap: number } | undefined;
 
   const driverCapLevel = upgradesRow?.driver_cap ?? 0;
-  const driverCap = 4 + driverCapLevel * 2;
+  const driverCap = getActualValue("driver_cap", driverCapLevel);
 
   return <DriversClient data={{ drivers, driverCap }} />;
 }

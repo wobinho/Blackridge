@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { initDb } from "@/lib/db";
 import { seedDatabase } from "@/lib/seed";
+import { getActualValue } from "@/lib/upgrades";
 
 const ROLL_COST_XGEAR = 100;
 
@@ -173,7 +174,7 @@ export async function PUT(req: NextRequest) {
   // Check cap
   const upgrades = db.prepare(`SELECT ${capField} FROM workshop_upgrades WHERE user_id = ?`).get(session.id) as Record<string, number> | undefined;
   const capLevel = upgrades?.[capField] ?? 0;
-  const cap = 4 + capLevel * 2;
+  const cap = getActualValue(capField, capLevel);
   const currentCount = (db.prepare(`SELECT COUNT(*) as cnt FROM ${instanceTable} WHERE user_id = ?`).get(session.id) as { cnt: number }).cnt;
 
   if (currentCount >= cap) {

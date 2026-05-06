@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { initDb } from "@/lib/db";
+import { getActualValue } from "@/lib/upgrades";
 
 const CAR_BUILD_BASE_SECONDS = 3600; // 1 hour base
 
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     `SELECT develop_slots FROM workshop_upgrades WHERE user_id = ?`
   ).get(session.id) as { develop_slots: number } | undefined;
   const slotsLevel = upgrades?.develop_slots ?? 0;
-  const maxSlots = 2 + slotsLevel * 1;
+  const maxSlots = getActualValue("develop_slots", slotsLevel);
 
   if (slot_index < 0 || slot_index >= maxSlots) {
     return NextResponse.json({ error: "Invalid slot index." }, { status: 400 });

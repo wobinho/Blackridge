@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { initDb } from "@/lib/db";
 import { seedDatabase } from "@/lib/seed";
 import Link from "next/link";
+import PrestigeLevelPanel from "./PrestigeLevelPanel";
 
 interface DashboardData {
   carCount: number;
@@ -9,9 +10,10 @@ interface DashboardData {
   activeRaces: number;
   craftingCount: number;
   recentActivity: Array<{ message: string; created_at: number; credits_delta: number }>;
+  levelReq: { prestige_cost: number; credits_cost: number } | null;
 }
 
-async function getDashboardData(userId: number): Promise<DashboardData> {
+async function getDashboardData(userId: number, currentLevel: number): Promise<DashboardData> {
   const db = await initDb();
   await seedDatabase(db);
 
@@ -21,14 +23,21 @@ async function getDashboardData(userId: number): Promise<DashboardData> {
   const craftingCount = (db.prepare("SELECT COUNT(*) as c FROM crafting_queue WHERE user_id = ? AND status IN ('queued','crafting')").get(userId) as { c: number }).c;
   const recentActivity = db.prepare("SELECT message, created_at, credits_delta FROM activity_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 5").all(userId) as Array<{ message: string; created_at: number; credits_delta: number }>;
 
-  return { carCount, driverCount, activeRaces, craftingCount, recentActivity };
+  let levelReq: { prestige_cost: number; credits_cost: number } | null = null;
+  if (currentLevel < 10) {
+    levelReq = db.prepare(
+      "SELECT prestige_cost, credits_cost FROM level_requirements WHERE level = ?"
+    ).get(currentLevel + 1) as { prestige_cost: number; credits_cost: number } | null;
+  }
+
+  return { carCount, driverCount, activeRaces, craftingCount, recentActivity, levelReq };
 }
 
 export default async function GameHQPage() {
   const session = await getSession();
   if (!session) return null;
 
-  const data = await getDashboardData(session.id);
+  const data = await getDashboardData(session.id, session.level);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
@@ -57,7 +66,7 @@ export default async function GameHQPage() {
           {[
             { label: "Credits", value: session.credits.toLocaleString(), suffix: "CR", color: "#fff" },
             { label: "Prestige", value: session.prestige.toLocaleString(), suffix: "PTS", color: "#c9a84c" },
-            { label: "Level", value: String(session.level), suffix: "", color: "#e8001c" },
+            { label: "Level", value: String(session.level), suffix: `/ 10`, color: "#e8001c" },
             { label: "Reputation", value: "—", suffix: "", color: "#555" },
           ].map((stat) => (
             <div key={stat.label} className="card p-4">
@@ -83,6 +92,14 @@ export default async function GameHQPage() {
             </div>
           ))}
         </div>
+
+        {/* Prestige Level Panel */}
+        <PrestigeLevelPanel
+          currentLevel={session.level}
+          prestige={session.prestige}
+          credits={session.credits}
+          levelReq={data.levelReq}
+        />
 
         {/* Quick status */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">

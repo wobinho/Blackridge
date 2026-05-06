@@ -63,18 +63,27 @@ function CircuitCard({
   circuit,
   onEnter,
   isActive,
+  canAfford,
 }: {
   circuit: RaceCircuit;
   onEnter: () => void;
   isActive: boolean;
+  canAfford: boolean;
 }) {
-  const materials = (() => {
-    try { return JSON.parse(circuit.reward_materials) as Array<{ material_id: number; qty: number }>; }
-    catch { return []; }
+  // Parse first-place podium rewards for preview
+  const podium1 = (() => {
+    try {
+      const arr = JSON.parse(circuit.podium_rewards) as Array<{
+        position: number; credits_bonus: number; xgear_bonus: number; mat_count: number; prestige_bonus: number;
+      }>;
+      return arr.find((p) => p.position === 1) ?? null;
+    } catch { return null; }
   })();
 
+  const disabled = isActive || !canAfford;
+
   return (
-    <div className={`race-circuit-card ${isActive ? "race-circuit-active" : ""}`}>
+    <div className={`race-circuit-card ${isActive ? "race-circuit-active" : ""} ${!canAfford && !isActive ? "race-circuit-cant-afford" : ""}`}>
       {/* Header gradient strip */}
       <div
         className="race-circuit-header"
@@ -82,7 +91,10 @@ function CircuitCard({
       >
         <div className="race-circuit-header-inner">
           <DifficultyDots level={circuit.difficulty} />
-          <span className="race-duration-badge">{formatDuration(circuit.duration_seconds)}</span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span className="race-field-badge">{circuit.field_size} CARS</span>
+            <span className="race-duration-badge">{formatDuration(circuit.duration_seconds)}</span>
+          </div>
         </div>
         {/* Diagonal accent line */}
         <div className="race-circuit-slash" />
@@ -121,28 +133,43 @@ function CircuitCard({
           </div>
         )}
 
-        {/* Rewards */}
-        <div className="race-rewards-row">
-          <span className="race-reward-cr">
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ display: "inline", marginRight: 3 }}>
-              <circle cx="5.5" cy="5.5" r="4.5" stroke="#c9a84c" strokeWidth="1" />
-              <text x="5.5" y="8" textAnchor="middle" fill="#c9a84c" fontSize="5" fontFamily="monospace">C</text>
-            </svg>
-            +{circuit.reward_credits.toLocaleString()} CR
-          </span>
-          <span className="race-reward-prestige">+{circuit.reward_prestige} PST</span>
-          {materials.slice(0, 2).map((m, i) => (
-            <span key={i} className="race-reward-mat">×{m.qty} MAT</span>
-          ))}
-        </div>
+        {/* 1st place reward preview */}
+        {podium1 && (
+          <div className="race-podium-preview">
+            <span className="race-podium-label">1ST PLACE</span>
+            <div className="race-podium-rewards">
+              {podium1.credits_bonus > 0 && (
+                <span className="race-reward-cr">+{podium1.credits_bonus.toLocaleString()} CR</span>
+              )}
+              {podium1.xgear_bonus > 0 && (
+                <span className="race-reward-xg">+{podium1.xgear_bonus} XG</span>
+              )}
+              {podium1.mat_count > 0 && (
+                <span className="race-reward-mat">×{podium1.mat_count} MAT</span>
+              )}
+              {podium1.prestige_bonus > 0 && (
+                <span className="race-reward-prestige">+{podium1.prestige_bonus} PST</span>
+              )}
+            </div>
+          </div>
+        )}
 
-        <button
-          className="race-enter-btn"
-          onClick={onEnter}
-          disabled={isActive}
-        >
-          {isActive ? "RACING…" : "ENTER RACE"}
-        </button>
+        {/* Entry cost + button */}
+        <div className="race-entry-row">
+          <div className="race-entry-cost">
+            <span className="race-entry-cost-label">ENTRY</span>
+            <span className={`race-entry-cost-val ${!canAfford ? "race-entry-cant" : ""}`}>
+              {circuit.entry_cost.toLocaleString()} CR
+            </span>
+          </div>
+          <button
+            className={`race-enter-btn ${!canAfford && !isActive ? "race-enter-btn-broke" : ""}`}
+            onClick={onEnter}
+            disabled={disabled}
+          >
+            {isActive ? "RACING…" : !canAfford ? "INSUFFICIENT CR" : "ENTER RACE"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -232,7 +259,9 @@ function ActiveRaceCard({
 // ─── Race Result ──────────────────────────────────────────────────────────────
 type RaceResult = {
   position: number;
+  field_size: number;
   credits_earned: number;
+  xgear_earned: number;
   prestige_earned: number;
   materials: Array<{ name: string; qty: number }>;
 };
@@ -245,43 +274,60 @@ const POSITION_COLORS: Record<number, string> = {
 };
 
 function ResultOverlay({ result, onClose }: { result: RaceResult; onClose: () => void }) {
-  const posLabel = POSITION_LABELS[result.position] ?? "DNF";
-  const posColor = POSITION_COLORS[result.position] ?? "#e8001c";
+  const posLabel = POSITION_LABELS[result.position] ?? `P${result.position}`;
+  const posColor = POSITION_COLORS[result.position] ?? "rgba(255,255,255,0.4)";
+  const isPodium = result.position <= 3;
 
   return (
     <div className="race-result-overlay">
       <div className="race-result-card race-result-slide-up">
         <div className="race-result-pos-wrap" style={{ color: posColor }}>
           <span className="race-result-pos">{posLabel}</span>
-          <span className="race-result-pos-label">FINISH</span>
+          <span className="race-result-pos-label">
+            FINISH · {result.field_size} CAR FIELD
+          </span>
         </div>
 
         <div className="race-result-divider" />
 
-        <div className="race-result-rewards">
-          {result.credits_earned > 0 && (
-            <div className="race-result-reward-item">
-              <span className="race-result-reward-label">CREDITS</span>
-              <span className="race-result-reward-val" style={{ color: "#c9a84c" }}>
-                +{result.credits_earned.toLocaleString()} CR
-              </span>
-            </div>
-          )}
-          {result.prestige_earned > 0 && (
-            <div className="race-result-reward-item">
-              <span className="race-result-reward-label">PRESTIGE</span>
-              <span className="race-result-reward-val" style={{ color: "#e8001c" }}>
-                +{result.prestige_earned} PST
-              </span>
-            </div>
-          )}
-          {result.materials?.map((m, i) => (
-            <div key={i} className="race-result-reward-item">
-              <span className="race-result-reward-label">{m.name.toUpperCase()}</span>
-              <span className="race-result-reward-val">×{m.qty}</span>
-            </div>
-          ))}
-        </div>
+        {isPodium ? (
+          <div className="race-result-rewards">
+            {result.credits_earned > 0 && (
+              <div className="race-result-reward-item">
+                <span className="race-result-reward-label">CREDITS</span>
+                <span className="race-result-reward-val" style={{ color: "#c9a84c" }}>
+                  +{result.credits_earned.toLocaleString()} CR
+                </span>
+              </div>
+            )}
+            {result.xgear_earned > 0 && (
+              <div className="race-result-reward-item">
+                <span className="race-result-reward-label">XGEAR</span>
+                <span className="race-result-reward-val" style={{ color: "#818cf8" }}>
+                  +{result.xgear_earned} XG
+                </span>
+              </div>
+            )}
+            {result.prestige_earned > 0 && (
+              <div className="race-result-reward-item">
+                <span className="race-result-reward-label">PRESTIGE</span>
+                <span className="race-result-reward-val" style={{ color: "#e8001c" }}>
+                  +{result.prestige_earned} PST
+                </span>
+              </div>
+            )}
+            {result.materials?.map((m, i) => (
+              <div key={i} className="race-result-reward-item">
+                <span className="race-result-reward-label">{m.name.toUpperCase()}</span>
+                <span className="race-result-reward-val">×{m.qty}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", padding: "16px 0 20px", color: "rgba(255,255,255,0.25)", fontSize: "12px", fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}>
+            FINISHED P{result.position} — NO REWARD THIS TIME
+          </div>
+        )}
 
         <button className="race-result-close" onClick={onClose}>CLOSE</button>
       </div>
@@ -585,9 +631,14 @@ function EntryModal({
                   <span className="race-confirm-stat-label">DURATION</span>
                   <span className="race-confirm-stat-val">{formatDuration(circuit.duration_seconds)}</span>
                 </div>
+                <div className="race-confirm-stat">
+                  <span className="race-confirm-stat-label">FIELD SIZE</span>
+                  <span className="race-confirm-stat-val">{circuit.field_size}</span>
+                </div>
               </div>
 
               <div className="race-confirm-notice">
+                Entry fee of <span style={{ color: "#c9a84c" }}>{circuit.entry_cost.toLocaleString()} CR</span> will be charged.
                 The driver, engineer, and car will be unavailable until the race completes.
               </div>
 
@@ -620,6 +671,7 @@ export default function RaceClient({ data }: { data: RacePageData }) {
   const [tab, setTab] = useState<"STANDARD" | "EVENT">("STANDARD");
   const [entryCircuit, setEntryCircuit] = useState<RaceCircuit | null>(null);
   const [raceResult, setRaceResult] = useState<RaceResult | null>(null);
+  const userCredits = data.credits;
 
   const activeCircuitIds = new Set(
     data.activeRaces
@@ -672,10 +724,16 @@ export default function RaceClient({ data }: { data: RacePageData }) {
               <h1 className="race-page-title">RACE HQ</h1>
               <p className="race-page-sub">Deploy cars. Earn rewards. Build prestige.</p>
             </div>
+            <div style={{ display: "flex", gap: "16px", alignItems: "flex-end" }}>
             <div className="race-header-credits">
               <span className="race-credits-val">{data.credits.toLocaleString()}</span>
               <span className="race-credits-label">CR</span>
             </div>
+            <div className="race-header-credits">
+              <span className="race-credits-val" style={{ color: "#818cf8" }}>{data.xgear.toLocaleString()}</span>
+              <span className="race-credits-label">XG</span>
+            </div>
+          </div>
           </div>
         </div>
 
@@ -733,6 +791,7 @@ export default function RaceClient({ data }: { data: RacePageData }) {
                     circuit={c}
                     onEnter={() => setEntryCircuit(c)}
                     isActive={activeCircuitIds.has(c.id)}
+                    canAfford={userCredits >= c.entry_cost}
                   />
                 ))}
               </div>
@@ -1041,13 +1100,64 @@ const RACE_STYLES = `
   border-radius: 2px;
 }
 
-.race-rewards-row {
+.race-field-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0.06em;
+  background: rgba(232,0,28,0.2);
+  border: 1px solid rgba(232,0,28,0.3);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.race-podium-preview {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: rgba(201,168,76,0.04);
+  border: 1px solid rgba(201,168,76,0.1);
+  border-radius: 2px;
+}
+.race-podium-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: rgba(201,168,76,0.5);
+  display: block;
+  margin-bottom: 5px;
+}
+.race-podium-rewards {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: 5px;
   align-items: center;
 }
+
+.race-entry-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.race-entry-cost {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.race-entry-cost-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.25);
+}
+.race-entry-cost-val {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: -0.01em;
+}
+.race-entry-cant { color: #e8001c !important; }
+
 .race-reward-cr {
   font-family: var(--font-mono, monospace);
   font-size: 11px;
@@ -1059,33 +1169,47 @@ const RACE_STYLES = `
   font-size: 11px;
   color: #e8001c;
 }
+.race-reward-xg {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: #818cf8;
+}
 .race-reward-mat {
   font-family: var(--font-mono, monospace);
   font-size: 10px;
   color: rgba(255,255,255,0.4);
 }
 
+.race-circuit-cant-afford {
+  opacity: 0.7;
+}
+
 .race-enter-btn {
-  width: 100%;
+  flex: 1;
   background: rgba(232,0,28,0.1);
   border: 1px solid rgba(232,0,28,0.4);
   color: #e8001c;
   font-family: var(--font-display, 'Bebas Neue'), sans-serif;
-  font-size: 15px;
+  font-size: 14px;
   letter-spacing: 0.1em;
-  padding: 10px;
+  padding: 9px 12px;
   border-radius: 2px;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  white-space: nowrap;
 }
 .race-enter-btn:hover:not(:disabled) {
   background: rgba(232,0,28,0.2);
   border-color: rgba(232,0,28,0.7);
 }
 .race-enter-btn:disabled {
-  opacity: 0.4;
   cursor: not-allowed;
+}
+.race-enter-btn-broke {
+  background: rgba(255,255,255,0.03) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.25) !important;
 }
 
 /* Active Race Cards */
@@ -1569,6 +1693,9 @@ const RACE_STYLES = `
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin-bottom: 14px;
+}
+@media (min-width: 400px) {
+  .race-confirm-stats { grid-template-columns: repeat(3, 1fr); }
 }
 .race-confirm-stat {
   background: #131313;

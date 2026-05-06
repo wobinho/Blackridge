@@ -339,7 +339,9 @@ CREATE TABLE IF NOT EXISTS circuits (
   min_speed        INTEGER NOT NULL DEFAULT 0,
   min_handling     INTEGER NOT NULL DEFAULT 0,
   duration_seconds INTEGER NOT NULL DEFAULT 300,
-  podium_rewards   TEXT    NOT NULL DEFAULT '[]'   -- JSON: [{position, credits_bonus, prestige_bonus}]
+  podium_rewards   TEXT    NOT NULL DEFAULT '[]',  -- JSON: [{position, credits_bonus, prestige_bonus}]
+  entry_cost       INTEGER NOT NULL DEFAULT 0,
+  field_size       INTEGER NOT NULL DEFAULT 5
 );
 
 -- ============================================================
@@ -355,6 +357,7 @@ CREATE TABLE IF NOT EXISTS races (
   car_id       INTEGER NOT NULL REFERENCES cars(id),
   status       TEXT    NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','in_progress','completed','failed')),
   result       TEXT,
+  npc_field    TEXT    DEFAULT '[]',  -- JSON snapshot of NPC car stats drawn for this race
   started_at   INTEGER NOT NULL DEFAULT (unixepoch()),
   completes_at INTEGER NOT NULL,
   completed_at INTEGER,
@@ -447,6 +450,33 @@ CREATE TABLE IF NOT EXISTS gacha_pity (
   banner      TEXT NOT NULL CHECK (banner IN ('driver','engineer')),
   pity_count  INTEGER NOT NULL DEFAULT 0,
   UNIQUE(user_id, banner)
+);
+
+-- ============================================================
+-- NPC CARS (pre-built opponents per circuit)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS npc_cars (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  circuit_id      INTEGER NOT NULL REFERENCES circuits(id),
+  name            TEXT    NOT NULL,
+  stat_speed      INTEGER NOT NULL DEFAULT 50,
+  stat_handling   INTEGER NOT NULL DEFAULT 50,
+  stat_durability INTEGER NOT NULL DEFAULT 50,
+  stat_acceleration INTEGER NOT NULL DEFAULT 50,
+  description     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_npc_cars_circuit ON npc_cars(circuit_id);
+
+-- ============================================================
+-- LEVEL REQUIREMENTS (prestige system)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS level_requirements (
+  level           INTEGER PRIMARY KEY,  -- target level (2-10)
+  prestige_cost   INTEGER NOT NULL DEFAULT 0,
+  credits_cost    INTEGER NOT NULL DEFAULT 0
 );
 
 -- ============================================================

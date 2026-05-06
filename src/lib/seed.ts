@@ -51,6 +51,225 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
 
   const seeded = db.prepare("SELECT value FROM meta WHERE key = 'seeded_v2'").get();
 
+  // Backfill: add entry_cost and field_size columns to circuits if missing
+  const circuitColBackfill = db.prepare("SELECT value FROM meta WHERE key = 'circuit_entry_cost_backfill_v1'").get();
+  if (!circuitColBackfill) {
+    try { db.prepare("ALTER TABLE circuits ADD COLUMN entry_cost INTEGER NOT NULL DEFAULT 0").run(); } catch { /* already exists */ }
+    try { db.prepare("ALTER TABLE circuits ADD COLUMN field_size INTEGER NOT NULL DEFAULT 5").run(); } catch { /* already exists */ }
+    // Update existing circuit rows with correct values
+    const circuitUpdates: [number, number, string][] = [
+      [1000,  5,  "Ridgeport Oval"],
+      [3000,  8,  "Blackwater Bay Circuit"],
+      [5000,  10, "Iron Peak Mountain Pass"],
+      [10000, 12, "Neon District Street Race"],
+      [50000, 20, "Grand Prix de Blackridge"],
+    ];
+    for (const [ec, fs, name] of circuitUpdates) {
+      db.prepare("UPDATE circuits SET entry_cost = ?, field_size = ? WHERE name = ?").run(ec, fs, name);
+    }
+    db.prepare("INSERT INTO meta (key, value) VALUES ('circuit_entry_cost_backfill_v1', '1')").run();
+  }
+
+  // Backfill: update podium_rewards for all circuits to match the correct reward spec
+  const podiumRewardsBackfill = db.prepare("SELECT value FROM meta WHERE key = 'circuit_podium_rewards_backfill_v1'").get();
+  if (!podiumRewardsBackfill) {
+    const podiumUpdates: [string, string][] = [
+      ["Ridgeport Oval", JSON.stringify([
+        {position:1,credits_bonus:10000,xgear_bonus:2,mat_count:10,prestige_bonus:5},
+        {position:2,credits_bonus:5000, xgear_bonus:0,mat_count:10,prestige_bonus:2},
+        {position:3,credits_bonus:2000, xgear_bonus:0,mat_count:5, prestige_bonus:1},
+      ])],
+      ["Blackwater Bay Circuit", JSON.stringify([
+        {position:1,credits_bonus:25000,xgear_bonus:3,mat_count:20,prestige_bonus:10},
+        {position:2,credits_bonus:15000,xgear_bonus:0,mat_count:10,prestige_bonus:5},
+        {position:3,credits_bonus:5000, xgear_bonus:0,mat_count:10,prestige_bonus:2},
+      ])],
+      ["Iron Peak Mountain Pass", JSON.stringify([
+        {position:1,credits_bonus:40000,xgear_bonus:5,mat_count:30,prestige_bonus:20},
+        {position:2,credits_bonus:20000,xgear_bonus:0,mat_count:20,prestige_bonus:8},
+        {position:3,credits_bonus:10000,xgear_bonus:0,mat_count:10,prestige_bonus:4},
+      ])],
+      ["Neon District Street Race", JSON.stringify([
+        {position:1,credits_bonus:75000,xgear_bonus:7,mat_count:50,prestige_bonus:35},
+        {position:2,credits_bonus:30000,xgear_bonus:0,mat_count:30,prestige_bonus:15},
+        {position:3,credits_bonus:15000,xgear_bonus:0,mat_count:10,prestige_bonus:6},
+      ])],
+      ["Grand Prix de Blackridge", JSON.stringify([
+        {position:1,credits_bonus:500000,xgear_bonus:20,mat_count:100,prestige_bonus:100},
+        {position:2,credits_bonus:150000,xgear_bonus:5, mat_count:50, prestige_bonus:40},
+        {position:3,credits_bonus:50000, xgear_bonus:3, mat_count:20, prestige_bonus:15},
+      ])],
+    ];
+    for (const [name, pod] of podiumUpdates) {
+      db.prepare("UPDATE circuits SET podium_rewards = ? WHERE name = ?").run(pod, name);
+    }
+    db.prepare("INSERT INTO meta (key, value) VALUES ('circuit_podium_rewards_backfill_v1', '1')").run();
+  }
+
+  // Backfill: add npc_field column to races if missing
+  const npcFieldBackfill = db.prepare("SELECT value FROM meta WHERE key = 'races_npc_field_backfill_v1'").get();
+  if (!npcFieldBackfill) {
+    try { db.prepare("ALTER TABLE races ADD COLUMN npc_field TEXT DEFAULT '[]'").run(); } catch { /* already exists */ }
+    db.prepare("INSERT INTO meta (key, value) VALUES ('races_npc_field_backfill_v1', '1')").run();
+  }
+
+  // Backfill: create level_requirements table and seed if missing
+  const levelReqBackfill = db.prepare("SELECT value FROM meta WHERE key = 'level_requirements_backfill_v1'").get();
+  if (!levelReqBackfill) {
+    db.prepare(`CREATE TABLE IF NOT EXISTS level_requirements (
+      level INTEGER PRIMARY KEY, prestige_cost INTEGER NOT NULL DEFAULT 0, credits_cost INTEGER NOT NULL DEFAULT 0
+    )`).run();
+    const levelData: [number, number, number][] = [
+      [2,50,100000],[3,100,200000],[4,200,300000],[5,300,500000],
+      [6,400,750000],[7,500,1000000],[8,600,1500000],[9,700,2000000],[10,1000,5000000],
+    ];
+    for (const [lvl, pres, cred] of levelData) {
+      db.prepare("INSERT OR IGNORE INTO level_requirements (level, prestige_cost, credits_cost) VALUES (?,?,?)").run(lvl, pres, cred);
+    }
+    db.prepare("INSERT INTO meta (key, value) VALUES ('level_requirements_backfill_v1', '1')").run();
+  }
+
+  // Backfill: create npc_cars table and seed data if missing
+  const npcCarsBackfill = db.prepare("SELECT value FROM meta WHERE key = 'npc_cars_seed_backfill_v1'").get();
+  if (!npcCarsBackfill) {
+    db.prepare(`CREATE TABLE IF NOT EXISTS npc_cars (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, circuit_id INTEGER NOT NULL, name TEXT NOT NULL,
+      stat_speed INTEGER NOT NULL DEFAULT 50, stat_handling INTEGER NOT NULL DEFAULT 50,
+      stat_durability INTEGER NOT NULL DEFAULT 50, stat_acceleration INTEGER NOT NULL DEFAULT 50,
+      description TEXT
+    )`).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_npc_cars_circuit ON npc_cars(circuit_id)`).run();
+    // Seed NPC car data inline so it runs for existing DBs too (full data in main seed below)
+    // We defer to the main seed block for new DBs; this backfill seeds for existing ones
+    const _npcInsert = db.prepare(`INSERT INTO npc_cars (circuit_id, name, stat_speed, stat_handling, stat_durability, stat_acceleration, description) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    const _getC = (n: string) => (db.prepare("SELECT id FROM circuits WHERE name = ?").get(n) as { id: number } | undefined)?.id;
+
+    const _npcData: [string, string, number, number, number, number, string][] = [
+      // Ridgeport Oval (10)
+      ["Ridgeport Oval","Garrett #12",28,22,30,25,"Local oval regular."],
+      ["Ridgeport Oval","Team Apex #7",35,28,28,30,"Amateur team."],
+      ["Ridgeport Oval","Rookie Racer #3",22,18,35,20,"First season driver."],
+      ["Ridgeport Oval","Sandy Cruz",32,24,32,28,"Weekend warrior."],
+      ["Ridgeport Oval","Bolt Motorsport",38,30,25,34,"Small outfit."],
+      ["Ridgeport Oval","Dale Vickers",26,20,38,22,"Veteran driver, old car."],
+      ["Ridgeport Oval","Circuit Kings #2",40,32,26,36,"Local hotshoe."],
+      ["Ridgeport Oval","Freeway Foxes",30,26,30,26,"Balanced backmarker."],
+      ["Ridgeport Oval","Iron Fist #9",34,28,34,30,"Tough car."],
+      ["Ridgeport Oval","Dusty Roads Co",24,22,40,20,"Built for endurance."],
+      // Blackwater Bay Circuit (16)
+      ["Blackwater Bay Circuit","Coastal Speed Co",48,40,35,44,"Seaside sports car."],
+      ["Blackwater Bay Circuit","Bay Runners #1",55,45,38,50,"Regional contender."],
+      ["Blackwater Bay Circuit","Storm Lap Racing",42,38,42,40,"Aggressive style."],
+      ["Blackwater Bay Circuit","Tidal Force #4",60,50,32,55,"Fast but fragile."],
+      ["Blackwater Bay Circuit","Crosswind Motors",45,44,44,42,"Handles wind well."],
+      ["Blackwater Bay Circuit","Gulf Circuit Team",52,48,40,48,"Solid mid-field."],
+      ["Blackwater Bay Circuit","Seabreeze #11",38,42,48,36,"Technical driver."],
+      ["Blackwater Bay Circuit","Aqua Drift Co",58,46,36,52,"Flashy, real pace."],
+      ["Blackwater Bay Circuit","Harbor Line Racing",43,40,45,41,"Consistent finisher."],
+      ["Blackwater Bay Circuit","Tide Surge #6",65,52,30,60,"Top of the field."],
+      ["Blackwater Bay Circuit","Windward Works",40,38,50,38,"Durable car."],
+      ["Blackwater Bay Circuit","Breaker Point FC",50,46,38,46,"Local favorite."],
+      ["Blackwater Bay Circuit","Saltflat Speed",44,42,42,42,"Balanced all-rounder."],
+      ["Blackwater Bay Circuit","Bay Area Bolts",62,50,34,56,"Young team."],
+      ["Blackwater Bay Circuit","Shoreline SC #8",36,36,52,34,"Finishes races."],
+      ["Blackwater Bay Circuit","Lagoon Racers",54,44,40,50,"Mid-pack threat."],
+      // Iron Peak Mountain Pass (20)
+      ["Iron Peak Mountain Pass","Summit Racing #1",65,70,55,60,"Mountain specialist."],
+      ["Iron Peak Mountain Pass","Alpine Works",72,65,50,68,"High altitude setup."],
+      ["Iron Peak Mountain Pass","Peak Motorsport",58,68,60,55,"Technical team."],
+      ["Iron Peak Mountain Pass","Crestline FC",80,72,48,75,"Front runner."],
+      ["Iron Peak Mountain Pass","Ironside Racing",55,62,65,52,"Durable build."],
+      ["Iron Peak Mountain Pass","Altitude Speed Co",75,68,52,70,"Quick and consistent."],
+      ["Iron Peak Mountain Pass","Pinnacle Motors",60,75,58,57,"Handling specialist."],
+      ["Iron Peak Mountain Pass","Ridge Runners #3",68,60,55,64,"Aggressive pacing."],
+      ["Iron Peak Mountain Pass","Cliff Edge Racing",52,58,70,50,"Safer, slower."],
+      ["Iron Peak Mountain Pass","Rockface FC #7",82,70,46,78,"Edge of the cliff."],
+      ["Iron Peak Mountain Pass","Granite Works",64,66,60,60,"Mid-field regular."],
+      ["Iron Peak Mountain Pass","Skyline Speed",70,64,55,66,"Good all-round."],
+      ["Iron Peak Mountain Pass","Switchback SC",57,72,62,54,"Best handling here."],
+      ["Iron Peak Mountain Pass","Cloud Cap Racing",76,66,50,72,"Strong pace."],
+      ["Iron Peak Mountain Pass","Tundra Motorsport",50,60,72,48,"Built for survival."],
+      ["Iron Peak Mountain Pass","Highpass FC #10",84,68,44,80,"Reckless but rapid."],
+      ["Iron Peak Mountain Pass","Snowline Speed",62,64,58,58,"Reliable scorer."],
+      ["Iron Peak Mountain Pass","Crater Works",54,70,66,52,"Technical brilliance."],
+      ["Iron Peak Mountain Pass","Summit Sharks #2",78,72,50,74,"Top-three threat."],
+      ["Iron Peak Mountain Pass","Iron Pass FC",66,62,60,62,"Veteran team."],
+      // Neon District Street Race (24)
+      ["Neon District Street Race","Night Shift Racing",80,75,60,78,"Street regulars."],
+      ["Neon District Street Race","Volt Syndicate #1",95,80,55,90,"Electrifying pace."],
+      ["Neon District Street Race","Urban Blur Co",72,70,65,70,"Lower speed, high style."],
+      ["Neon District Street Race","Neon Kings #4",105,88,50,100,"Top tier machine."],
+      ["Neon District Street Race","Grid Lock Racing",75,78,68,72,"Urban specialist."],
+      ["Neon District Street Race","Street Phantom #9",90,82,58,86,"Deadly pace."],
+      ["Neon District Street Race","District Drift FC",68,85,72,65,"Handling god."],
+      ["Neon District Street Race","Midnight Works",98,78,52,94,"Fastest on the straight."],
+      ["Neon District Street Race","Neon Outlaws",76,72,66,74,"Surprise package."],
+      ["Neon District Street Race","Flash Motorsport #2",92,80,56,88,"Consistent front-runner."],
+      ["Neon District Street Race","Circuit Ghosts",70,76,70,68,"Great car, no stars."],
+      ["Neon District Street Race","Apex City Racing",100,84,52,96,"Clinical execution."],
+      ["Neon District Street Race","Signal Break FC",78,74,64,76,"Punch above weight."],
+      ["Neon District Street Race","Red Light District",88,76,60,84,"Gritty team."],
+      ["Neon District Street Race","Voltage Drop SC",66,80,74,64,"Handling focused."],
+      ["Neon District Street Race","Street Sovereign #5",102,86,54,98,"City champion."],
+      ["Neon District Street Race","Lane Splitters",74,70,68,72,"Always in the mix."],
+      ["Neon District Street Race","Grid Phantom Co",96,82,56,92,"Slippery and quick."],
+      ["Neon District Street Race","Neon Rush #7",82,76,62,80,"Fun team."],
+      ["Neon District Street Race","Megawatt Motors",108,90,48,104,"Absolute rocket."],
+      ["Neon District Street Race","Cityblock FC",70,74,70,68,"Solid city car."],
+      ["Neon District Street Race","Blacktop Syndicate",86,78,60,82,"Streetwise and fast."],
+      ["Neon District Street Race","Urban Surge #3",94,84,54,90,"High energy outfit."],
+      ["Neon District Street Race","Neon Storm Racing",78,72,64,76,"Veteran street team."],
+      // Grand Prix de Blackridge (40)
+      ["Grand Prix de Blackridge","Blackridge Works #1",120,110,90,115,"Factory team."],
+      ["Grand Prix de Blackridge","Apex Dynasty",135,115,85,130,"Championship contender."],
+      ["Grand Prix de Blackridge","Iron Throne FC",95,100,95,92,"Mid-field workhorse."],
+      ["Grand Prix de Blackridge","Crimson Circuit #3",140,118,82,136,"On the limit every lap."],
+      ["Grand Prix de Blackridge","Velocity Prime",105,108,92,102,"Technically brilliant."],
+      ["Grand Prix de Blackridge","Grand Prix Ghosts",128,112,88,124,"Experienced outfit."],
+      ["Grand Prix de Blackridge","Zero Drag Works",148,120,78,144,"Fastest straight-line."],
+      ["Grand Prix de Blackridge","Carbon Crown Racing",98,106,96,95,"All-round package."],
+      ["Grand Prix de Blackridge","Blackridge Elite #2",132,114,86,128,"Sister factory team."],
+      ["Grand Prix de Blackridge","Speed Sovereign",115,110,90,112,"Consistent top-5."],
+      ["Grand Prix de Blackridge","Formula Works FC",142,116,80,138,"Ex-formula team."],
+      ["Grand Prix de Blackridge","Pinnacle Grand Prix",100,105,94,98,"Surgical in corners."],
+      ["Grand Prix de Blackridge","Prestige Motors #4",125,112,88,122,"Well-organized."],
+      ["Grand Prix de Blackridge","Apex Legion",138,118,83,134,"Hunting the title."],
+      ["Grand Prix de Blackridge","Titanium Works",108,107,92,105,"Robust car."],
+      ["Grand Prix de Blackridge","Blackridge Storm",145,119,79,141,"Brilliant in the dry."],
+      ["Grand Prix de Blackridge","Circuit Sovereign #7",118,110,89,115,"Race craft over pace."],
+      ["Grand Prix de Blackridge","Hyperion Racing",130,115,86,126,"Tech-forward outfit."],
+      ["Grand Prix de Blackridge","Iron Dominion",92,102,98,90,"Toughest chassis."],
+      ["Grand Prix de Blackridge","Onyx Motorsport",122,112,88,118,"Quiet team, loud results."],
+      ["Grand Prix de Blackridge","Blackridge Legends #6",136,116,84,132,"Proven race winners."],
+      ["Grand Prix de Blackridge","Apex Throne FC",102,106,94,100,"Technical team."],
+      ["Grand Prix de Blackridge","Grand Prix Elite",144,120,80,140,"Pure pace."],
+      ["Grand Prix de Blackridge","Velocity Kings #5",112,109,91,109,"Mid-pack royalty."],
+      ["Grand Prix de Blackridge","Chrome Circuit",126,113,87,122,"Sleek machine."],
+      ["Grand Prix de Blackridge","Steel Dominion #8",96,103,97,93,"Durability experts."],
+      ["Grand Prix de Blackridge","Blackridge Thunder",140,117,81,136,"Thunder every straight."],
+      ["Grand Prix de Blackridge","Apex Prestige",110,108,91,107,"Prestige pace."],
+      ["Grand Prix de Blackridge","Grand Slam Racing",133,115,85,129,"All-or-nothing strategy."],
+      ["Grand Prix de Blackridge","Zero Limits FC",147,121,77,143,"Fastest in qualifying."],
+      ["Grand Prix de Blackridge","Meridian Works #9",104,106,93,101,"Solid all-rounder."],
+      ["Grand Prix de Blackridge","Blackridge Circuit Co",120,111,90,116,"Home circuit advantage."],
+      ["Grand Prix de Blackridge","Summit Grand Prix",128,113,87,124,"Altitude specialists."],
+      ["Grand Prix de Blackridge","Apex Finale",138,117,83,134,"Saves best for big shows."],
+      ["Grand Prix de Blackridge","Omega Works FC",115,109,90,112,"Late-season form."],
+      ["Grand Prix de Blackridge","Neon Circuit GP #10",142,119,79,138,"Street DNA meets GP."],
+      ["Grand Prix de Blackridge","Iron Grand Prix",100,105,95,98,"Mountain-hardened."],
+      ["Grand Prix de Blackridge","Velocity Sovereign",130,114,86,126,"Waiting for a win."],
+      ["Grand Prix de Blackridge","Blackridge Champion",150,122,80,146,"The defending champion."],
+      ["Grand Prix de Blackridge","Apex Unlimited",106,108,92,103,"No limits on ambition."],
+    ];
+
+    for (const [circuitName, name, spd, hdl, dur, acc, desc] of _npcData) {
+      const cid = _getC(circuitName);
+      if (cid) _npcInsert.run(cid, name, spd, hdl, dur, acc, desc);
+    }
+
+    db.prepare("INSERT INTO meta (key, value) VALUES ('npc_cars_seed_backfill_v1', '1')").run();
+  }
+
   // Backfill: give any user without a workshop_upgrades row a default one
   const workshopBackfill = db.prepare("SELECT value FROM meta WHERE key = 'workshop_upgrades_backfill_v1'").get();
   if (!workshopBackfill) {
@@ -389,8 +608,9 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
   const insertCircuit = db.prepare(`
     INSERT OR IGNORE INTO circuits
       (name, location, difficulty, laps, reward_credits, reward_materials, reward_prestige,
-       unlock_level, description, archetype, min_speed, min_handling, duration_seconds, podium_rewards)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       unlock_level, description, archetype, min_speed, min_handling, duration_seconds, podium_rewards,
+       entry_cost, field_size)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const getMatId = (name: string): number => {
@@ -399,37 +619,60 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
     return row.id;
   };
 
-  const podium1 = JSON.stringify([{position:1,credits_bonus:200,prestige_bonus:3},{position:2,credits_bonus:100,prestige_bonus:1},{position:3,credits_bonus:50,prestige_bonus:0}]);
-  const podium2 = JSON.stringify([{position:1,credits_bonus:400,prestige_bonus:6},{position:2,credits_bonus:200,prestige_bonus:3},{position:3,credits_bonus:100,prestige_bonus:1}]);
-  const podium3 = JSON.stringify([{position:1,credits_bonus:800,prestige_bonus:12},{position:2,credits_bonus:400,prestige_bonus:6},{position:3,credits_bonus:200,prestige_bonus:3}]);
-  const podium4 = JSON.stringify([{position:1,credits_bonus:1500,prestige_bonus:25},{position:2,credits_bonus:750,prestige_bonus:12},{position:3,credits_bonus:400,prestige_bonus:6}]);
-  const podium5 = JSON.stringify([{position:1,credits_bonus:3000,prestige_bonus:50},{position:2,credits_bonus:1500,prestige_bonus:25},{position:3,credits_bonus:750,prestige_bonus:12}]);
+  // Podium rewards: {position, credits_bonus, xgear_bonus, mat_count, prestige_bonus}
+  // mat_count = number of random materials awarded (0 = none)
+  const podium1 = JSON.stringify([
+    {position:1,credits_bonus:10000,xgear_bonus:2,mat_count:10,prestige_bonus:5},
+    {position:2,credits_bonus:5000, xgear_bonus:0,mat_count:10,prestige_bonus:2},
+    {position:3,credits_bonus:2000, xgear_bonus:0,mat_count:5, prestige_bonus:1},
+  ]);
+  const podium2 = JSON.stringify([
+    {position:1,credits_bonus:25000,xgear_bonus:3,mat_count:20,prestige_bonus:10},
+    {position:2,credits_bonus:15000,xgear_bonus:0,mat_count:10,prestige_bonus:5},
+    {position:3,credits_bonus:5000, xgear_bonus:0,mat_count:10,prestige_bonus:2},
+  ]);
+  const podium3 = JSON.stringify([
+    {position:1,credits_bonus:40000,xgear_bonus:5,mat_count:30,prestige_bonus:20},
+    {position:2,credits_bonus:20000,xgear_bonus:0,mat_count:20,prestige_bonus:8},
+    {position:3,credits_bonus:10000,xgear_bonus:0,mat_count:10,prestige_bonus:4},
+  ]);
+  const podium4 = JSON.stringify([
+    {position:1,credits_bonus:75000,xgear_bonus:7,mat_count:50,prestige_bonus:35},
+    {position:2,credits_bonus:30000,xgear_bonus:0,mat_count:30,prestige_bonus:15},
+    {position:3,credits_bonus:15000,xgear_bonus:0,mat_count:10,prestige_bonus:6},
+  ]);
+  const podium5 = JSON.stringify([
+    {position:1,credits_bonus:500000,xgear_bonus:20,mat_count:100,prestige_bonus:100},
+    {position:2,credits_bonus:150000,xgear_bonus:5, mat_count:50, prestige_bonus:40},
+    {position:3,credits_bonus:50000, xgear_bonus:3, mat_count:20, prestige_bonus:15},
+  ]);
 
   const circuits = [
-    ["Ridgeport Oval",           "Ridgeport, CA",  1, 10, 300,
-      () => JSON.stringify([{material_id:getMatId("Steel"),qty:3},{material_id:getMatId("Hardware"),qty:2}]),
-      5,  1,  "A simple oval track. Perfect for newcomers to find their feet.",
-      null, 0, 0, 120, podium1],
-    ["Blackwater Bay Circuit",   "Blackwater, FL", 2, 15, 600,
-      () => JSON.stringify([{material_id:getMatId("Aluminum"),qty:2},{material_id:getMatId("Compounds"),qty:2}]),
-      12, 2,  "Coastal winds make this technical circuit deceptively challenging.",
-      "sports_car", 0, 0, 240, podium2],
-    ["Iron Peak Mountain Pass",  "Iron Peak, CO",  3, 8,  1200,
-      () => JSON.stringify([{material_id:getMatId("Titanium"),qty:1},{material_id:getMatId("Carbon"),qty:1}]),
-      25, 5,  "High altitude hairpins test driver skill and mechanical endurance.",
-      null, 55, 50, 360, podium3],
-    ["Neon District Street Race","Meridian City",  4, 12, 2500,
-      () => JSON.stringify([{material_id:getMatId("Electronics"),qty:1},{material_id:getMatId("Fluids"),qty:2}]),
-      50, 10, "Illegal? Maybe. Legendary? Absolutely.",
-      "sports_car", 70, 60, 480, podium4],
-    ["Grand Prix de Blackridge", "Blackridge HQ",  5, 20, 5000,
-      () => JSON.stringify([{material_id:getMatId("Carbon"),qty:2},{material_id:getMatId("Titanium"),qty:1},{material_id:getMatId("Electronics"),qty:1}]),
-      100, 18, "The ultimate stage. Only the best brands compete here.",
-      null, 85, 80, 600, podium5],
+    // name, loc, diff, laps, base_credits, rewardFn, base_prestige, ul, desc, arch, ms, mh, dur, pod, entry_cost, field_size
+    ["Ridgeport Oval",           "Ridgeport, CA",  1, 10, 0,
+      () => JSON.stringify([]),
+      0,  1,  "A simple oval track. Perfect for newcomers to find their feet.",
+      null, 0, 0, 120, podium1, 1000, 5],
+    ["Blackwater Bay Circuit",   "Blackwater, FL", 2, 15, 0,
+      () => JSON.stringify([]),
+      0, 2,  "Coastal winds make this technical circuit deceptively challenging.",
+      null, 0, 0, 240, podium2, 3000, 8],
+    ["Iron Peak Mountain Pass",  "Iron Peak, CO",  3, 8,  0,
+      () => JSON.stringify([]),
+      0, 3,  "High altitude hairpins test driver skill and mechanical endurance.",
+      null, 55, 50, 360, podium3, 5000, 10],
+    ["Neon District Street Race","Meridian City",  4, 12, 0,
+      () => JSON.stringify([]),
+      0, 5, "Illegal? Maybe. Legendary? Absolutely.",
+      null, 70, 60, 480, podium4, 10000, 12],
+    ["Grand Prix de Blackridge", "Blackridge HQ",  5, 20, 0,
+      () => JSON.stringify([]),
+      0, 10, "The ultimate stage. Only the best brands compete here.",
+      null, 85, 80, 600, podium5, 50000, 20],
   ];
 
-  for (const [name, loc, diff, laps, cred, rewardFn, pres, ul, desc, arch, ms, mh, dur, pod] of circuits) {
-    insertCircuit.run(name, loc, diff, laps, cred, (rewardFn as () => string)(), pres, ul, desc, arch, ms, mh, dur, pod);
+  for (const [name, loc, diff, laps, cred, rewardFn, pres, ul, desc, arch, ms, mh, dur, pod, ec, fs] of circuits) {
+    insertCircuit.run(name, loc, diff, laps, cred, (rewardFn as () => string)(), pres, ul, desc, arch, ms, mh, dur, pod, ec, fs);
   }
 
   // ============================================================
@@ -478,6 +721,212 @@ export async function seedDatabase(db: DbWrapper): Promise<void> {
   ];
 
   for (const p of partListings) insertPartListing.run(...p);
+
+  // ============================================================
+  // LEVEL REQUIREMENTS (prestige system, levels 2-10)
+  // ============================================================
+
+  const insertLevel = db.prepare(`
+    INSERT OR IGNORE INTO level_requirements (level, prestige_cost, credits_cost)
+    VALUES (?, ?, ?)
+  `);
+
+  const levelReqs: [number, number, number][] = [
+    [2,   50,   100000],
+    [3,   100,  200000],
+    [4,   200,  300000],
+    [5,   300,  500000],
+    [6,   400,  750000],
+    [7,   500,  1000000],
+    [8,   600,  1500000],
+    [9,   700,  2000000],
+    [10,  1000, 5000000],
+  ];
+
+  for (const [lvl, pres, cred] of levelReqs) insertLevel.run(lvl, pres, cred);
+
+  // ============================================================
+  // NPC CARS per circuit
+  // Pool sizes: Ridgeport=10, Blackwater=16, Iron Peak=20, Neon=24, Grand Prix=40
+  // Stats are balanced around what a player car at that tier would look like.
+  // ============================================================
+
+  const insertNpc = db.prepare(`
+    INSERT OR IGNORE INTO npc_cars (circuit_id, name, stat_speed, stat_handling, stat_durability, stat_acceleration, description)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const getCircuitId = (name: string): number => {
+    const row = db.prepare("SELECT id FROM circuits WHERE name = ?").get(name) as { id: number } | undefined;
+    if (!row) throw new Error(`Circuit not found: ${name}`);
+    return row.id;
+  };
+
+  // Helper to check if NPC cars already seeded for a circuit
+  const npcExists = (circuitId: number): boolean => {
+    const row = db.prepare("SELECT COUNT(*) as c FROM npc_cars WHERE circuit_id = ?").get(circuitId) as { c: number };
+    return row.c > 0;
+  };
+
+  // --- Ridgeport Oval (10 NPC cars, beginner tier, speed 20-45)
+  const ridgeportId = getCircuitId("Ridgeport Oval");
+  if (!npcExists(ridgeportId)) {
+    const ridgeportNpcs: [string, number, number, number, number, string][] = [
+      ["Garrett #12",     28, 22, 30, 25, "Local oval regular. Consistent but slow."],
+      ["Team Apex #7",    35, 28, 28, 30, "Amateur team with decent speed."],
+      ["Rookie Racer #3", 22, 18, 35, 20, "First season driver. Survives more than wins."],
+      ["Sandy Cruz",      32, 24, 32, 28, "Weekend warrior with a tuned street car."],
+      ["Bolt Motorsport", 38, 30, 25, 34, "Small outfit with a quick machine."],
+      ["Dale Vickers",    26, 20, 38, 22, "Veteran driver, old slow car."],
+      ["Circuit Kings #2",40, 32, 26, 36, "Local hotshoe. Dangerous on the straight."],
+      ["Freeway Foxes",   30, 26, 30, 26, "Balanced backmarker team."],
+      ["Iron Fist #9",    34, 28, 34, 30, "Tough car, average driver."],
+      ["Dusty Roads Co",  24, 22, 40, 20, "Built for endurance, not speed."],
+    ];
+    for (const [n, spd, hdl, dur, acc, desc] of ridgeportNpcs) {
+      insertNpc.run(ridgeportId, n, spd, hdl, dur, acc, desc);
+    }
+  }
+
+  // --- Blackwater Bay Circuit (16 NPC cars, intermediate tier, speed 35-65)
+  const blackwaterId = getCircuitId("Blackwater Bay Circuit");
+  if (!npcExists(blackwaterId)) {
+    const blackwaterNpcs: [string, number, number, number, number, string][] = [
+      ["Coastal Speed Co", 48, 40, 35, 44, "Seaside team with a quick sports car."],
+      ["Bay Runners #1",   55, 45, 38, 50, "Regional contender. Knows every corner."],
+      ["Storm Lap Racing", 42, 38, 42, 40, "Aggressive style, tends to overcook corners."],
+      ["Tidal Force #4",   60, 50, 32, 55, "Fast but fragile. All or nothing."],
+      ["Crosswind Motors", 45, 44, 44, 42, "Handles the bay wind better than most."],
+      ["Gulf Circuit Team",52, 48, 40, 48, "Solid mid-field presence."],
+      ["Seabreeze #11",    38, 42, 48, 36, "Technical driver, slower car."],
+      ["Aqua Drift Co",    58, 46, 36, 52, "Flashy livery, real pace."],
+      ["Harbor Line Racing",43, 40, 45, 41, "Consistent finisher, never spectacular."],
+      ["Tide Surge #6",    65, 52, 30, 60, "Top of the field. Hard to beat on raw pace."],
+      ["Windward Works",   40, 38, 50, 38, "Durable car, cautious team."],
+      ["Breaker Point FC", 50, 46, 38, 46, "Local favorite with a loyal crew."],
+      ["Saltflat Speed",   44, 42, 42, 42, "Balanced all-rounder."],
+      ["Bay Area Bolts",   62, 50, 34, 56, "Young team, big talent."],
+      ["Shoreline SC #8",  36, 36, 52, 34, "Slow but finishes races others don't."],
+      ["Lagoon Racers",    54, 44, 40, 50, "Mid-pack threat on a good day."],
+    ];
+    for (const [n, spd, hdl, dur, acc, desc] of blackwaterNpcs) {
+      insertNpc.run(blackwaterId, n, spd, hdl, dur, acc, desc);
+    }
+  }
+
+  // --- Iron Peak Mountain Pass (20 NPC cars, hard tier, speed 50-85)
+  const ironPeakId = getCircuitId("Iron Peak Mountain Pass");
+  if (!npcExists(ironPeakId)) {
+    const ironPeakNpcs: [string, number, number, number, number, string][] = [
+      ["Summit Racing #1",   65, 70, 55, 60, "Mountain specialist. Pinpoint braking."],
+      ["Alpine Works",       72, 65, 50, 68, "High altitude setup, fast on the climbs."],
+      ["Peak Motorsport",    58, 68, 60, 55, "Technical team focused on the technical sections."],
+      ["Crestline FC",       80, 72, 48, 75, "Front runner. Scares everyone at the hairpins."],
+      ["Ironside Racing",    55, 62, 65, 52, "Durable build suits the rough mountain surface."],
+      ["Altitude Speed Co",  75, 68, 52, 70, "Quick and consistent up top."],
+      ["Pinnacle Motors",    60, 75, 58, 57, "Handling specialist. Brilliant through the bends."],
+      ["Ridge Runners #3",   68, 60, 55, 64, "Aggressive pacing from the gun."],
+      ["Cliff Edge Racing",  52, 58, 70, 50, "Safer, slower, but always there at the end."],
+      ["Rockface FC #7",     82, 70, 46, 78, "Flat-out pace. Edge of the cliff every lap."],
+      ["Granite Works",      64, 66, 60, 60, "Mid-field mountain regular."],
+      ["Skyline Speed",      70, 64, 55, 66, "Good all-round package."],
+      ["Switchback SC",      57, 72, 62, 54, "The best handling car in the field."],
+      ["Cloud Cap Racing",   76, 66, 50, 72, "Strong pace on the long straights."],
+      ["Tundra Motorsport",  50, 60, 72, 48, "Built for survival, not speed."],
+      ["Highpass FC #10",    84, 68, 44, 80, "Highest speed car here. Reckless but rapid."],
+      ["Snowline Speed",     62, 64, 58, 58, "Reliable points scorer."],
+      ["Crater Works",       54, 70, 66, 52, "Technical brilliance in a slow car."],
+      ["Summit Sharks #2",   78, 72, 50, 74, "Top-three threat every race."],
+      ["Iron Pass FC",       66, 62, 60, 62, "Veteran mountain team. Never surprised."],
+    ];
+    for (const [n, spd, hdl, dur, acc, desc] of ironPeakNpcs) {
+      insertNpc.run(ironPeakId, n, spd, hdl, dur, acc, desc);
+    }
+  }
+
+  // --- Neon District Street Race (24 NPC cars, elite tier, speed 65-110)
+  const neonId = getCircuitId("Neon District Street Race");
+  if (!npcExists(neonId)) {
+    const neonNpcs: [string, number, number, number, number, string][] = [
+      ["Night Shift Racing",  80, 75, 60, 78, "Street regulars. Own the neon quarter."],
+      ["Volt Syndicate #1",   95, 80, 55, 90, "Electrifying pace through the city grid."],
+      ["Urban Blur Co",       72, 70, 65, 70, "Lower speed, high style."],
+      ["Neon Kings #4",      105, 88, 50, 100,"Top tier street machine. Almost unbeatable."],
+      ["Grid Lock Racing",    75, 78, 68, 72, "Technical urban specialist."],
+      ["Street Phantom #9",   90, 82, 58, 86, "Ghost of the street circuit. Deadly pace."],
+      ["District Drift FC",   68, 85, 72, 65, "Handling god. Corners at impossible speeds."],
+      ["Midnight Works",      98, 78, 52, 94, "Fastest car on the longest straight."],
+      ["Neon Outlaws",        76, 72, 66, 74, "Underground team with a surprise package."],
+      ["Flash Motorsport #2", 92, 80, 56, 88, "Consistent front-runner."],
+      ["Circuit Ghosts",      70, 76, 70, 68, "No star drivers, just a great car."],
+      ["Apex City Racing",   100, 84, 52, 96, "Apex every corner. Clinical execution."],
+      ["Signal Break FC",     78, 74, 64, 76, "Mid-field but punch above their weight."],
+      ["Red Light District",  88, 76, 60, 84, "Gritty team, tough to pass."],
+      ["Voltage Drop SC",     66, 80, 74, 64, "Handling focused in the city twisties."],
+      ["Street Sovereign #5",102, 86, 54, 98, "City champion. Defends hard."],
+      ["Lane Splitters",      74, 70, 68, 72, "Never the fastest but always in the mix."],
+      ["Grid Phantom Co",     96, 82, 56, 92, "Slippery, quick, hard to catch."],
+      ["Neon Rush #7",        82, 76, 62, 80, "Fun team, decent pace."],
+      ["Megawatt Motors",    108, 90, 48,104, "Absolute rocket. Fragile chassis."],
+      ["Cityblock FC",        70, 74, 70, 68, "Solid city car. Strong at night races."],
+      ["Blacktop Syndicate",  86, 78, 60, 82, "Streetwise and fast."],
+      ["Urban Surge #3",      94, 84, 54, 90, "High energy outfit. Always racing hard."],
+      ["Neon Storm Racing",   78, 72, 64, 76, "Veteran street team. Knows the tricks."],
+    ];
+    for (const [n, spd, hdl, dur, acc, desc] of neonNpcs) {
+      insertNpc.run(neonId, n, spd, hdl, dur, acc, desc);
+    }
+  }
+
+  // --- Grand Prix de Blackridge (40 NPC cars, championship tier, speed 80-150)
+  const grandPrixId = getCircuitId("Grand Prix de Blackridge");
+  if (!npcExists(grandPrixId)) {
+    const grandPrixNpcs: [string, number, number, number, number, string][] = [
+      ["Blackridge Works #1",  120, 110, 90, 115, "Factory team. The benchmark everyone chases."],
+      ["Apex Dynasty",         135, 115, 85, 130, "Championship contender every season."],
+      ["Iron Throne FC",        95, 100, 95, 92,  "Mid-field workhorse. Never beaten easily."],
+      ["Crimson Circuit #3",   140, 118, 82, 136, "On the limit every lap. Spectacular to watch."],
+      ["Velocity Prime",       105, 108, 92, 102, "Technically brilliant setup."],
+      ["Grand Prix Ghosts",    128, 112, 88, 124, "Experienced outfit. Rarely makes mistakes."],
+      ["Zero Drag Works",      148, 120, 78, 144, "Fastest straight-line speed in the field."],
+      ["Carbon Crown Racing",   98, 106, 96, 95,  "All-round package. Threat anywhere."],
+      ["Blackridge Elite #2",  132, 114, 86, 128, "Sister team to the factory squad."],
+      ["Speed Sovereign",      115, 110, 90, 112, "Consistent top-5 material."],
+      ["Formula Works FC",     142, 116, 80, 138, "Ex-formula team. Aggressive setup."],
+      ["Pinnacle Grand Prix",  100, 105, 94, 98,  "Handlers. Slow but surgical through corners."],
+      ["Prestige Motors #4",   125, 112, 88, 122, "Well-funded, well-organized."],
+      ["Apex Legion",          138, 118, 83, 134, "Hunting the title every race."],
+      ["Titanium Works",       108, 107, 92, 105, "Robust car, seasoned driver."],
+      ["Blackridge Storm",     145, 119, 79, 141, "Wet weather nightmare. Brilliant in the dry."],
+      ["Circuit Sovereign #7", 118, 110, 89, 115, "Race craft over raw pace."],
+      ["Hyperion Racing",      130, 115, 86, 126, "Tech-forward outfit. Always evolving."],
+      ["Iron Dominion",         92, 102, 98, 90,  "Toughest chassis in the paddock."],
+      ["Onyx Motorsport",      122, 112, 88, 118, "Quiet team, loud results."],
+      ["Blackridge Legends #6",136, 116, 84, 132, "Living history. Proven race winners."],
+      ["Apex Throne FC",       102, 106, 94, 100, "Technical team. Love the technical sectors."],
+      ["Grand Prix Elite",     144, 120, 80, 140, "Pure pace. Nothing held back."],
+      ["Velocity Kings #5",    112, 109, 91, 109, "Mid-pack royalty with upset potential."],
+      ["Chrome Circuit",       126, 113, 87, 122, "Sleek machine with strong qualifying pace."],
+      ["Steel Dominion #8",     96, 103, 97, 93,  "Durability experts. Strong in long races."],
+      ["Blackridge Thunder",   140, 117, 81, 136, "Thunder down every straight."],
+      ["Apex Prestige",        110, 108, 91, 107, "Prestige name, prestige pace."],
+      ["Grand Slam Racing",    133, 115, 85, 129, "All-or-nothing race strategy."],
+      ["Zero Limits FC",       147, 121, 77, 143, "Name says it all. Fastest in qualifying."],
+      ["Meridian Works #9",    104, 106, 93, 101, "Solid all-rounder from a rival city."],
+      ["Blackridge Circuit Co",120, 111, 90, 116, "Home circuit advantage. Knows every inch."],
+      ["Summit Grand Prix",    128, 113, 87, 124, "Altitude specialists adapting to the GP."],
+      ["Apex Finale",          138, 117, 83, 134, "Always saves best for the big show."],
+      ["Omega Works FC",       115, 109, 90, 112, "Late-season form. Dangerous."],
+      ["Neon Circuit GP #10",  142, 119, 79, 138, "Street DNA meets GP engineering."],
+      ["Iron Grand Prix",      100, 105, 95, 98,  "Mountain-hardened machine."],
+      ["Velocity Sovereign",   130, 114, 86, 126, "Top-5 every race. Waiting for a win."],
+      ["Blackridge Champion",  150, 122, 80, 146, "The defending champion. The car to beat."],
+      ["Apex Unlimited",       106, 108, 92, 103, "No limits on ambition. Sometimes on speed."],
+    ];
+    for (const [n, spd, hdl, dur, acc, desc] of grandPrixNpcs) {
+      insertNpc.run(grandPrixId, n, spd, hdl, dur, acc, desc);
+    }
+  }
 
   db.prepare("INSERT INTO meta (key, value) VALUES ('seeded_v2', '1')").run();
 }

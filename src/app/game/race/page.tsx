@@ -22,6 +22,8 @@ export interface RaceCircuit {
   min_handling: number;
   duration_seconds: number;
   podium_rewards: string;
+  entry_cost: number;
+  field_size: number;
 }
 
 export interface ActiveRace {
@@ -96,6 +98,7 @@ export interface RacePageData {
   userEngineers: UserEngineer[];
   userCars: UserCar[];
   credits: number;
+  xgear: number;
   serverNow: number;
 }
 
@@ -115,7 +118,9 @@ export default async function RacePage() {
            COALESCE(min_speed, 0) as min_speed,
            COALESCE(min_handling, 0) as min_handling,
            COALESCE(duration_seconds, 300) as duration_seconds,
-           COALESCE(podium_rewards, '[]') as podium_rewards
+           COALESCE(podium_rewards, '[]') as podium_rewards,
+           COALESCE(entry_cost, 0) as entry_cost,
+           COALESCE(field_size, 5) as field_size
     FROM circuits
     ORDER BY difficulty ASC, id ASC
   `).all() as RaceCircuit[];
@@ -170,7 +175,7 @@ export default async function RacePage() {
     ORDER BY c.stat_speed DESC
   `).all(session.id) as UserCar[];
 
-  const user = db.prepare(`SELECT credits FROM users WHERE id = ?`).get(session.id) as { credits: number };
+  const user = db.prepare(`SELECT credits, xgear FROM users WHERE id = ?`).get(session.id) as { credits: number; xgear: number };
 
   return (
     <RaceClient
@@ -181,6 +186,7 @@ export default async function RacePage() {
         userEngineers,
         userCars,
         credits: user.credits,
+        xgear: user.xgear,
         serverNow: now,
       }}
     />

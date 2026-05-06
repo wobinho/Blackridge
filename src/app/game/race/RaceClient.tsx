@@ -338,7 +338,8 @@ function ActiveRaceCard({
   onResult: (result: RaceResult) => void;
   onClaimed: (id: number) => void;
 }) {
-  const [secs, setSecs] = useState(Math.max(0, race.completes_at - serverNow));
+  const initialSecs = race.completes_at - serverNow;
+  const [secs, setSecs] = useState(Math.max(0, initialSecs));
   const [claiming, setClaiming] = useState(false);
   const [showStandings, setShowStandings] = useState(false);
   const claimedRef = useRef(false);
@@ -364,7 +365,11 @@ function ActiveRaceCard({
   }, [race.id, onResult, onClaimed]);
 
   useEffect(() => {
-    if (race.status === "completed") return;
+    // Already past completes_at when the page loaded — claim immediately
+    if (initialSecs <= 0) {
+      claim();
+      return;
+    }
     const iv = setInterval(() => {
       setSecs((prev) => {
         const next = prev - 1;
@@ -377,7 +382,7 @@ function ActiveRaceCard({
       });
     }, 1000);
     return () => clearInterval(iv);
-  }, [race.status, claim]);
+  }, []);
 
   return (
     <>
